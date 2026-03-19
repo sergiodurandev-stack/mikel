@@ -1519,6 +1519,49 @@
             text-transform: uppercase;
         }
 
+        .impact-logos-nav {
+            display: none;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .impact-logos-nav .ic-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(196, 185, 154, 0.08);
+            border: 1px solid rgba(196, 185, 154, 0.2);
+            color: #C4B99A;
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s ease, border-color 0.2s ease;
+            line-height: 1;
+        }
+
+        .impact-logos-nav .ic-btn:hover:not(:disabled) {
+            background: rgba(196, 185, 154, 0.18);
+            border-color: rgba(196, 185, 154, 0.4);
+        }
+
+        .impact-logos-nav .ic-btn:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+
+        .impact-logos-nav .ic-counter {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: rgba(196, 185, 154, 0.45);
+            min-width: 36px;
+            text-align: center;
+        }
+
         /* ===== CONTACT SECTION ===== */
         .contact-section {
             position: relative;
@@ -2611,6 +2654,11 @@
                 <div class="impact-logo-item"><span>Logo</span></div>
                 <div class="impact-logo-item"><span>Logo</span></div>
             </div>
+            <div class="impact-logos-nav" id="impact-logos-nav">
+                <button class="ic-btn ic-prev" aria-label="Anterior">&#8592;</button>
+                <span class="ic-counter"></span>
+                <button class="ic-btn ic-next" aria-label="Siguiente">&#8594;</button>
+            </div>
         </div>
     </section>
 
@@ -2680,7 +2728,34 @@
             // Impact
             var imph = document.getElementById('impact-heading'); if (imph) imph.innerHTML = C.impact.heading;
             var impb = document.getElementById('impact-body'); if (impb) impb.innerHTML = C.impact.paragraphs.map(function(p){ return '<p>'+p+'</p>'; }).join('');
-            var impl = document.getElementById('impact-logos'); if (impl) impl.innerHTML = C.impact.logos.map(function(logo, i){ return logo.src ? '<div class="impact-logo-item has-logo"><img src="'+logo.src+'" alt="'+logo.alt+'"></div>' : '<div class="impact-logo-item"><span>Logo</span></div>'; }).join('');
+            (function() {
+                var logos = C.impact.logos;
+                var impl = document.getElementById('impact-logos');
+                var nav  = document.getElementById('impact-logos-nav');
+                if (!impl) return;
+                var PER = 4;
+                var page = 0;
+                var pages = Math.ceil(logos.length / PER);
+                function renderPage() {
+                    var slice = logos.slice(page * PER, page * PER + PER);
+                    impl.innerHTML = slice.map(function(logo) {
+                        return logo.src
+                            ? '<div class="impact-logo-item has-logo"><img src="'+logo.src+'" alt="'+logo.alt+'"></div>'
+                            : '<div class="impact-logo-item"><span>Logo</span></div>';
+                    }).join('');
+                    if (logos.length > PER && nav) {
+                        nav.querySelector('.ic-counter').textContent = (page+1) + ' / ' + pages;
+                        nav.querySelector('.ic-prev').disabled = page === 0;
+                        nav.querySelector('.ic-next').disabled = page === pages - 1;
+                    }
+                }
+                if (logos.length > PER && nav) {
+                    nav.style.display = 'flex';
+                    nav.querySelector('.ic-prev').addEventListener('click', function() { if (page > 0) { page--; renderPage(); } });
+                    nav.querySelector('.ic-next').addEventListener('click', function() { if (page < pages-1) { page++; renderPage(); } });
+                }
+                renderPage();
+            })();
             // Contact
             var ch = document.getElementById('contact-heading'); if (ch) ch.innerHTML = C.contact.heading;
             var cb = document.getElementById('contact-body'); if (cb) cb.textContent = C.contact.paragraph;

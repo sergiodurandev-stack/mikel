@@ -373,9 +373,10 @@
         </div>
 
         <div class="field">
-          <label class="lbl">Logos (4 espacios)</label>
+          <label class="lbl">Logos</label>
           <div class="logo-grid" id="logos-admin"></div>
-          <div class="hint" style="margin-top:8px">Sube imágenes PNG/SVG de los logos. Fondo transparente recomendado.</div>
+          <button type="button" onclick="addLogo()" style="margin-top:10px;font-size:10px;padding:6px 14px;background:rgba(196,185,154,0.08);border:1px solid rgba(196,185,154,0.2);color:#C4B99A;border-radius:3px;cursor:pointer;letter-spacing:1px;">+ Agregar logo</button>
+          <div class="hint" style="margin-top:8px">Sube imágenes PNG/SVG. Con más de 4 logos se activa el carrusel automáticamente.</div>
         </div>
       </div>
 
@@ -540,16 +541,7 @@ function buildForm() {
   set('impact-heading-field', htmlToTagged(C.impact.heading));
   set('impact-p1', C.impact.paragraphs[0] || '');
   set('impact-p2', C.impact.paragraphs[1] || '');
-  document.getElementById('logos-admin').innerHTML = C.impact.logos.map((logo, i) => `
-    <div class="logo-item">
-      <div class="logo-prev" id="lp-${i}">
-        ${logo.src ? `<img src="${esc(logo.src)}" alt="${esc(logo.alt)}">` : 'Logo ' + (i+1)}
-      </div>
-      <label class="btn-upload-label" for="lf-${i}" style="font-size:9px;padding:5px 10px">Subir logo</label>
-      <input type="file" id="lf-${i}" accept="image/*" onchange="uploadLogo(this,${i})">
-      <input type="hidden" id="lb64-${i}" value="${esc(logo.src||'')}">
-      <input type="text" id="lalt-${i}" value="${esc(logo.alt||'')}" placeholder="Nombre / alt text" style="margin-top:8px">
-    </div>`).join('');
+  renderLogosAdmin();
 
   // Contact
   set('contact-heading-field', htmlToTagged(C.contact.heading));
@@ -627,6 +619,35 @@ function uploadLogo(input, i) {
   r.readAsDataURL(file);
 }
 
+function renderLogosAdmin() {
+  const grid = document.getElementById('logos-admin');
+  if (!grid) return;
+  grid.innerHTML = CONTENT.impact.logos.map((logo, i) => `
+    <div class="logo-item" id="logo-item-${i}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:9px;letter-spacing:2px;color:rgba(196,185,154,0.4);text-transform:uppercase">Logo ${i+1}</span>
+        <button type="button" onclick="removeLogo(${i})" style="background:none;border:none;color:rgba(196,185,154,0.3);cursor:pointer;font-size:11px;padding:0" title="Eliminar">&#10005;</button>
+      </div>
+      <div class="logo-prev" id="lp-${i}">
+        ${logo.src ? `<img src="${esc(logo.src)}" alt="${esc(logo.alt)}">` : 'Logo ' + (i+1)}
+      </div>
+      <label class="btn-upload-label" for="lf-${i}" style="font-size:9px;padding:5px 10px">Subir logo</label>
+      <input type="file" id="lf-${i}" accept="image/*" onchange="uploadLogo(this,${i})">
+      <input type="hidden" id="lb64-${i}" value="${esc(logo.src||'')}">
+      <input type="text" id="lalt-${i}" value="${esc(logo.alt||'')}" placeholder="Nombre / alt text" style="margin-top:8px">
+    </div>`).join('');
+}
+
+function addLogo() {
+  CONTENT.impact.logos.push({ src: '', alt: 'Logo ' + (CONTENT.impact.logos.length + 1) });
+  renderLogosAdmin();
+}
+
+function removeLogo(i) {
+  CONTENT.impact.logos.splice(i, 1);
+  renderLogosAdmin();
+}
+
 // ─── GUARDAR ─────────────────────────────────────────────────────────
 function saveContent() {
   const C = {};
@@ -679,7 +700,7 @@ function saveContent() {
   C.impact = {
     heading: taggedToHtml(v('impact-heading-field')),
     paragraphs: [v('impact-p1'), v('impact-p2')].filter(Boolean),
-    logos: CONTENT.impact.logos.map((_, i) => ({ src: v('lb64-'+i), alt: v('lalt-'+i) || ('Logo '+(i+1)) }))
+    logos: CONTENT.impact.logos.map((_, i) => ({ src: v('lb64-'+i) || '', alt: v('lalt-'+i) || ('Logo '+(i+1)) }))
   };
 
   C.contact = {
