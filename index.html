@@ -545,10 +545,23 @@
             .impact-heading { font-size: 32px; line-height: 1.25; }
             .impact-body { font-size: 15px; }
             .impact-logos-label { margin-top: 48px; }
-            .impact-logos { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-            .impact-logo-item img { max-height: 52px; }
-            .impact-logos-nav { justify-content: center; margin-top: 20px; gap: 20px; }
-            .impact-logos-nav .ic-btn { width: 40px; height: 40px; font-size: 17px; }
+            .impact-logos-wrap { padding: 0 52px; }
+            .impact-logos { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .impact-logo-item { aspect-ratio: unset; height: 80px; padding: 16px 12px; }
+            .impact-logo-item img { max-height: 44px; }
+            .impact-logos-nav {
+                position: absolute;
+                top: 50%;
+                left: 0;
+                width: 100%;
+                transform: translateY(-50%);
+                justify-content: space-between;
+                margin-top: 0;
+                padding: 0;
+                pointer-events: none;
+            }
+            .impact-logos-nav .ic-btn { width: 40px; height: 40px; font-size: 17px; pointer-events: auto; }
+            .impact-logos-nav .ic-counter { display: none; }
 
             /* ── Contact ── */
             .contact-section { padding: 72px 24px 56px; }
@@ -1524,6 +1537,10 @@
             color: #C4B99A;
             opacity: 0.2;
             text-transform: uppercase;
+        }
+
+        .impact-logos-wrap {
+            position: relative;
         }
 
         .impact-logos-nav {
@@ -2655,16 +2672,18 @@
                 <p>From international platforms and global events to urban sustainability programs and institutional transformation projects, my role has focused on connecting strategy, communication and partnerships. Many of these initiatives have brought together public institutions, private sector actors and civil society organizations to translate complex agendas into collaborative action.</p>
             </div>
             <div class="impact-logos-label">Worked with</div>
-            <div class="impact-logos" id="impact-logos">
-                <div class="impact-logo-item"><span>Logo</span></div>
-                <div class="impact-logo-item"><span>Logo</span></div>
-                <div class="impact-logo-item"><span>Logo</span></div>
-                <div class="impact-logo-item"><span>Logo</span></div>
-            </div>
-            <div class="impact-logos-nav" id="impact-logos-nav">
-                <button class="ic-btn ic-prev" aria-label="Anterior">&#8592;</button>
-                <span class="ic-counter"></span>
-                <button class="ic-btn ic-next" aria-label="Siguiente">&#8594;</button>
+            <div class="impact-logos-wrap">
+                <div class="impact-logos" id="impact-logos">
+                    <div class="impact-logo-item"><span>Logo</span></div>
+                    <div class="impact-logo-item"><span>Logo</span></div>
+                    <div class="impact-logo-item"><span>Logo</span></div>
+                    <div class="impact-logo-item"><span>Logo</span></div>
+                </div>
+                <div class="impact-logos-nav" id="impact-logos-nav">
+                    <button class="ic-btn ic-prev" aria-label="Anterior">&#8592;</button>
+                    <span class="ic-counter"></span>
+                    <button class="ic-btn ic-next" aria-label="Siguiente">&#8594;</button>
+                </div>
             </div>
         </div>
     </section>
