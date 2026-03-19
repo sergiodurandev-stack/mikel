@@ -1,0 +1,15 @@
+# Backups generados por save.php
+content.backup.js
+*.bak
+
+# Archivos de diagnóstico / temporales
+diag.py
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# El video es grande — súbelo al servidor por FTP manualmente si es necesario
+# Descomenta la línea de abajo si NO quieres el video en el repo:
+# *.mp4

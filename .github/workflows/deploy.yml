@@ -1,0 +1,31 @@
+name: Deploy via FTP
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Upload to server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # Cambia esta ruta a la carpeta raíz de tu hosting (public_html, www, htdocs, etc.)
+          server-dir: /public_html/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            *.bak
+            diag.py
+            content.backup.js
