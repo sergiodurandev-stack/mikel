@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Deploy OK</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1A2E1A;
+      color: #F5F0E8;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .dot {
+      width: 12px; height: 12px;
+      background: #8CB88C;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.4); }
+    }
+    h1 { font-family: Georgia, serif; font-size: 28px; font-weight: 400; color: #C4B99A; letter-spacing: 2px; }
+    p { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: rgba(245,240,232,0.35); }
+    small { font-size: 11px; color: rgba(245,240,232,0.2); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="dot"></div>
+  <h1>Deploy exitoso</h1>
+  <p>Mikel Saez — mikelsaez.com</p>
+  <small id="ts"></small>
+  <script>
+    document.getElementById('ts').textContent = 'Generado: ' + new Date().toLocaleString('es-ES');
+  </script>
+</body>
+</html>
