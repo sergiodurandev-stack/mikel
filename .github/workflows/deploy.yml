@@ -40,6 +40,7 @@ jobs:
               --exclude-glob content.backup.js \
               --exclude-glob content.js \
               --exclude-glob image.png \
+              --exclude-glob es/content.js \
               . httpdocs/;
           "
 
@@ -92,4 +93,29 @@ jobs:
             "
           else
             echo "image.png already exists on server — skipping (managed by admin panel)."
+          fi
+
+      # Upload es/content.js only if it does NOT exist on the server yet
+      - name: Upload es/content.js (first deploy only)
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          EXISTS=$(lftp -c "
+            set ftp:ssl-allow no;
+            set ftp:passive-mode yes;
+            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+            cls httpdocs/es/content.js;
+          " 2>&1)
+          if [ -z "$EXISTS" ]; then
+            echo "es/content.js not found on server — uploading initial version..."
+            lftp -c "
+              set ftp:ssl-allow no;
+              set ftp:passive-mode yes;
+              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+              put es/content.js -o httpdocs/es/content.js;
+            "
+          else
+            echo "es/content.js already exists on server — skipping (managed by admin panel)."
           fi

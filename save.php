@@ -39,11 +39,15 @@ if (strpos($content, 'const CONTENT') === false) {
     exit;
 }
 
-// Ruta del archivo a sobreescribir
-$file = __DIR__ . '/content.js';
-
-// Hacer backup del archivo anterior
-$backup = __DIR__ . '/content.backup.js';
+// Determinar qué archivo guardar según el idioma
+$lang = $_POST['lang'] ?? '';
+if ($lang === 'es') {
+    $file   = __DIR__ . '/es/content.js';
+    $backup = __DIR__ . '/es/content.backup.js';
+} else {
+    $file   = __DIR__ . '/content.js';
+    $backup = __DIR__ . '/content.backup.js';
+}
 if (file_exists($file)) {
     copy($file, $backup);
 }
