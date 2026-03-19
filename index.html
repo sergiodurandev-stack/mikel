@@ -538,9 +538,9 @@
             .impact-section { padding: 72px 24px; }
             .impact-heading { font-size: 32px; line-height: 1.25; }
             .impact-body { font-size: 15px; }
-            .impact-logos { justify-content: center; gap: 24px; padding-top: 36px; margin-top: 48px; }
-            .impact-logo-item { flex: 0 1 calc(50% - 12px); min-width: 80px; }
-            .impact-logo-item img { max-height: 40px; max-width: 110px; }
+            .impact-logos-label { margin-top: 48px; }
+            .impact-logos { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .impact-logo-item img { max-height: 52px; }
 
             /* ── Contact ── */
             .contact-section { padding: 72px 24px 56px; }
@@ -1468,50 +1468,54 @@
             margin-bottom: 0;
         }
 
-        .impact-logos {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .impact-logos-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: rgba(196, 185, 154, 0.45);
             margin-top: 64px;
-            padding-top: 48px;
-            border-top: 1px solid rgba(196, 185, 154, 0.2);
-            flex-wrap: wrap;
-            gap: 32px;
+            margin-bottom: 20px;
+        }
+
+        .impact-logos {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
         }
 
         .impact-logo-item {
-            flex: 1;
-            min-width: 80px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(196, 185, 154, 0.12);
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 28px 24px;
+            aspect-ratio: 3 / 2;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        .impact-logo-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(196, 185, 154, 0.28);
         }
 
         .impact-logo-item img {
-            max-height: 52px;
-            max-width: 140px;
+            max-height: 72px;
+            max-width: 100%;
             width: auto;
             height: auto;
             object-fit: contain;
             display: block;
-            opacity: 0.7;
-            mix-blend-mode: lighten;
-            transition: opacity 0.3s ease;
-        }
-
-        .impact-logo-item img:hover {
-            opacity: 1;
-        }
-
-        .impact-logo-item.has-logo {
-            opacity: 1;
         }
 
         .impact-logo-item span {
             font-size: 10px;
             letter-spacing: 2px;
             color: #C4B99A;
-            opacity: 0.25;
+            opacity: 0.2;
             text-transform: uppercase;
         }
 
@@ -2600,6 +2604,7 @@
                 <p>Over the past decade I have worked across continents, sectors and institutions helping ideas grow into initiatives with real impact.</p>
                 <p>From international platforms and global events to urban sustainability programs and institutional transformation projects, my role has focused on connecting strategy, communication and partnerships. Many of these initiatives have brought together public institutions, private sector actors and civil society organizations to translate complex agendas into collaborative action.</p>
             </div>
+            <div class="impact-logos-label">Worked with</div>
             <div class="impact-logos" id="impact-logos">
                 <div class="impact-logo-item"><span>Logo</span></div>
                 <div class="impact-logo-item"><span>Logo</span></div>
