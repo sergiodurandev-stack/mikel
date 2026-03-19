@@ -538,6 +538,9 @@
             .impact-section { padding: 72px 24px; }
             .impact-heading { font-size: 32px; line-height: 1.25; }
             .impact-body { font-size: 15px; }
+            .impact-logos { justify-content: center; gap: 24px; padding-top: 36px; margin-top: 48px; }
+            .impact-logo-item { flex: 0 1 calc(50% - 12px); min-width: 80px; }
+            .impact-logo-item img { max-height: 40px; max-width: 110px; }
 
             /* ── Contact ── */
             .contact-section { padding: 72px 24px 56px; }
@@ -1467,44 +1470,48 @@
 
         .impact-logos {
             display: flex;
-            gap: 40px;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
-            margin-top: 60px;
+            margin-top: 64px;
+            padding-top: 48px;
+            border-top: 1px solid rgba(196, 185, 154, 0.2);
             flex-wrap: wrap;
+            gap: 32px;
         }
 
         .impact-logo-item {
-            width: 220px;
-            height: 110px;
-            border: 1px dashed rgba(196, 185, 154, 0.3);
-            border-radius: 4px;
+            flex: 1;
+            min-width: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 12px;
-            box-sizing: border-box;
-            opacity: 0.5;
         }
 
         .impact-logo-item img {
-            width: 100%;
-            height: 100%;
+            max-height: 52px;
+            max-width: 140px;
+            width: auto;
+            height: auto;
             object-fit: contain;
             display: block;
+            opacity: 0.7;
+            mix-blend-mode: lighten;
+            transition: opacity 0.3s ease;
+        }
+
+        .impact-logo-item img:hover {
             opacity: 1;
         }
 
         .impact-logo-item.has-logo {
             opacity: 1;
-            border-color: rgba(196, 185, 154, 0.2);
         }
 
         .impact-logo-item span {
             font-size: 10px;
             letter-spacing: 2px;
             color: #C4B99A;
-            opacity: 0.4;
+            opacity: 0.25;
             text-transform: uppercase;
         }
 
