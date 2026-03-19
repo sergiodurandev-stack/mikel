@@ -764,19 +764,34 @@ const CONTENT = ${JSON.stringify(C, null, 2)};
   btn.disabled = true;
 
   fetch('save.php', { method: 'POST', body: form })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data.ok) {
-        clearContentCache().then(function() {
-          showToast('¡Cambios guardados y caché limpiado ✓');
-        });
-      } else {
-        showToast('Error: ' + data.error);
-        console.error(data.error);
+    .then(function(r) {
+      var status = r.status;
+      return r.text().then(function(text) { return { status: status, text: text }; });
+    })
+    .then(function(res) {
+      try {
+        var data = JSON.parse(res.text);
+        if (data.ok) {
+          clearContentCache().then(function() {
+            showToast('¡Cambios guardados y caché limpiado ✓');
+          });
+        } else {
+          showToast('Error del servidor: ' + data.error);
+          console.error('save.php error:', data.error);
+        }
+      } catch(e) {
+        showToast('Error HTTP ' + res.status + ' — descargando respaldo');
+        console.error('Respuesta no JSON (HTTP ' + res.status + '):', res.text.substring(0, 300));
+        const blob = new Blob([js], { type: 'text/javascript' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'content.js'; a.click();
+        URL.revokeObjectURL(url);
       }
     })
     .catch(function(err) {
-      showToast('Error de conexión — descargando como respaldo');
+      showToast('Error de red: ' + err.message + ' — descargando respaldo');
+      console.error('fetch error:', err);
       const blob = new Blob([js], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
