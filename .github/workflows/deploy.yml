@@ -22,7 +22,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          server-dir: /public_html/arasaka.sergioduran.dev/mikel/
+          server-dir: ./arasaka.sergioduran.dev/mikel/
           exclude: |
             **/.git*
             **/.git*/**
