@@ -803,19 +803,18 @@
             width: 300px;
             pointer-events: none;
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(-10px);
             transition: opacity 0.3s ease, transform 0.3s ease;
             z-index: 30;
-            /* max priority, just below cursor (9998-10000) */
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            margin-top: -20px;
+            margin-top: 14px;
             left: 50%;
             margin-left: -150px;
         }
 
         .map-tooltip.visible {
             opacity: 1;
-            transform: translateY(-100%);
+            transform: translateY(0);
             pointer-events: auto;
         }
 
