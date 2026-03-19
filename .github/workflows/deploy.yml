@@ -17,20 +17,79 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      - name: Deploy via FTP
+      # Deploy all code files — excludes user-managed content
+      # --no-delete: never remove server files not in git (preserves user uploads)
+      - name: Deploy code files
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
           lftp -c "
             set ftp:ssl-allow no;
             set ftp:passive-mode yes;
             set net:max-retries 3;
-            set net:reconnect-interval-base 5;
-            open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp://${{ secrets.FTP_SERVER }};
-            mirror --reverse --delete --verbose \
+            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+            mirror --reverse --verbose \
               --exclude-glob .git \
               --exclude-glob .github/ \
               --exclude-glob deploy/ \
               --exclude-glob '*.bak' \
+              --exclude-glob '*.mp4' \
               --exclude-glob diag.py \
               --exclude-glob content.backup.js \
+              --exclude-glob content.js \
+              --exclude-glob image.png \
               . httpdocs/;
           "
+
+      # Upload content.js only if it does NOT exist on the server yet
+      # After first deploy the admin panel manages this file
+      - name: Upload content.js (first deploy only)
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          EXISTS=$(lftp -c "
+            set ftp:ssl-allow no;
+            set ftp:passive-mode yes;
+            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+            cls httpdocs/content.js;
+          " 2>&1)
+          if [ -z "$EXISTS" ]; then
+            echo "content.js not found on server — uploading initial version..."
+            lftp -c "
+              set ftp:ssl-allow no;
+              set ftp:passive-mode yes;
+              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+              put content.js -o httpdocs/content.js;
+            "
+          else
+            echo "content.js already exists on server — skipping (managed by admin panel)."
+          fi
+
+      # Upload image.png only if it does NOT exist on the server yet
+      - name: Upload image.png (first deploy only)
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          EXISTS=$(lftp -c "
+            set ftp:ssl-allow no;
+            set ftp:passive-mode yes;
+            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+            cls httpdocs/image.png;
+          " 2>&1)
+          if [ -z "$EXISTS" ]; then
+            echo "image.png not found on server — uploading initial version..."
+            lftp -c "
+              set ftp:ssl-allow no;
+              set ftp:passive-mode yes;
+              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
+              put image.png -o httpdocs/image.png;
+            "
+          else
+            echo "image.png already exists on server — skipping (managed by admin panel)."
+          fi
