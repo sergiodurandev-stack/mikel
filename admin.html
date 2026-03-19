@@ -578,6 +578,15 @@ function buildForm() {
           </div>
         </div>
         <div class="field" style="margin-bottom:10px"><label class="lbl">Descripción</label><textarea id="pd-${i}" style="min-height:56px">${esc(pin.desc)}</textarea></div>
+        <div class="field" style="margin-bottom:10px">
+          <label class="lbl">Imagen del proyecto</label>
+          <div class="logo-prev" id="pimgprev-${i}" style="height:70px">
+            ${pin.image ? `<img src="${esc(pin.image)}" alt="Imagen pin">` : 'Sin imagen'}
+          </div>
+          <label class="btn-upload-label" for="pimgf-${i}" style="font-size:9px;padding:5px 10px;margin-top:6px;display:inline-block">Subir imagen</label>
+          <input type="file" id="pimgf-${i}" accept="image/*" onchange="uploadPinImage(this,${i})">
+          <input type="hidden" id="pimg-${i}" value="${esc(pin.image||'')}">
+        </div>
         <div class="grid-2">
           <div class="field"><label class="lbl">Posición X (0–100)</label><input type="text" id="px-${i}" value="${pin.x}"></div>
           <div class="field"><label class="lbl">Posición Y (0–100)</label><input type="text" id="py-${i}" value="${pin.y}"></div>
@@ -615,6 +624,16 @@ function uploadLogo(input, i) {
   r.onload = e => {
     document.getElementById('lb64-' + i).value = e.target.result;
     document.getElementById('lp-' + i).innerHTML = `<img src="${e.target.result}" alt="Logo ${i+1}">`;
+  };
+  r.readAsDataURL(file);
+}
+
+function uploadPinImage(input, i) {
+  const file = input.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('pimg-' + i).value = e.target.result;
+    document.getElementById('pimgprev-' + i).innerHTML = `<img src="${e.target.result}" alt="Imagen pin">`;
   };
   r.readAsDataURL(file);
 }
@@ -719,7 +738,7 @@ function saveContent() {
       title: v('pt-'+i),
       category: v('pcat-'+i),
       pinClass: v('pcl-'+i),
-      image: pin.image || '',
+      image: v('pimg-'+i) || '',
       desc: v('pd-'+i),
       x: parseFloat(v('px-'+i)) || pin.x,
       y: parseFloat(v('py-'+i)) || pin.y
