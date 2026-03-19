@@ -23,6 +23,10 @@
             box-sizing: border-box;
         }
 
+        html {
+            overflow-x: hidden;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--color-dark-green);
@@ -533,6 +537,8 @@
                 margin-bottom: 12px;
             }
             .map-header-heading { font-size: 28px; line-height: 1.25; }
+            .map-container { opacity: 1 !important; transform: none !important; }
+            .map-pin { opacity: 1 !important; }
 
             /* ── Impact ── */
             .impact-section { padding: 72px 24px; }
@@ -3189,6 +3195,11 @@
 
         // --- 3-second safety fallback: force all animated elements visible ---
         setTimeout(function () {
+            // Map
+            const mapCtnFb = document.querySelector('.map-container');
+            if (mapCtnFb) mapCtnFb.classList.add('animate');
+            document.querySelectorAll('.map-pin').forEach(function(p) { p.classList.add('animate'); });
+
             // Intro
             const introHeading = document.querySelector('.intro-heading');
             const introDivider = document.querySelector('.intro-divider');
