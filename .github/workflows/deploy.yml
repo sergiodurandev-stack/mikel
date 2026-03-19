@@ -18,7 +18,6 @@ jobs:
         run: sudo apt-get install -y lftp
 
       # Deploy all code files — excludes user-managed content
-      # --no-delete: never remove server files not in git (preserves user uploads)
       - name: Deploy code files
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
@@ -45,19 +44,20 @@ jobs:
           "
 
       # Upload content.js only if it does NOT exist on the server yet
-      # After first deploy the admin panel manages this file
       - name: Upload content.js (first deploy only)
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
+          set +e
           EXISTS=$(lftp -c "
             set ftp:ssl-allow no;
             set ftp:passive-mode yes;
             open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
             cls httpdocs/content.js;
           " 2>&1)
+          set -e
           if [ -z "$EXISTS" ]; then
             echo "content.js not found on server — uploading initial version..."
             lftp -c "
@@ -77,12 +77,14 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
+          set +e
           EXISTS=$(lftp -c "
             set ftp:ssl-allow no;
             set ftp:passive-mode yes;
             open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
             cls httpdocs/image.png;
           " 2>&1)
+          set -e
           if [ -z "$EXISTS" ]; then
             echo "image.png not found on server — uploading initial version..."
             lftp -c "
@@ -102,12 +104,14 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
+          set +e
           EXISTS=$(lftp -c "
             set ftp:ssl-allow no;
             set ftp:passive-mode yes;
             open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
             cls httpdocs/es/content.js;
           " 2>&1)
+          set -e
           if [ -z "$EXISTS" ]; then
             echo "es/content.js not found on server — uploading initial version..."
             lftp -c "
