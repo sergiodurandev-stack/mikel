@@ -14,20 +14,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
+
       - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp
-          port: 21
-          server-dir: httpdocs/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            .github/**
-            *.bak
-            diag.py
-            content.backup.js
-            deploy/**
+        run: |
+          lftp -c "
+            set ftp:ssl-allow no;
+            set ftp:passive-mode yes;
+            set net:max-retries 3;
+            set net:reconnect-interval-base 5;
+            open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ftp://${{ secrets.FTP_SERVER }};
+            mirror --reverse --delete --verbose \
+              --exclude-glob .git \
+              --exclude-glob .github/ \
+              --exclude-glob deploy/ \
+              --exclude-glob '*.bak' \
+              --exclude-glob diag.py \
+              --exclude-glob content.backup.js \
+              . httpdocs/;
+          "
