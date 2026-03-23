@@ -34,57 +34,63 @@ jobs:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import os, sys, subprocess
+          import os, sys, urllib.request, urllib.error
 
-          url   = os.environ['DEPLOY_URL']    # https://saezdevicuna.eus/save.php
-          token = os.environ['DEPLOY_TOKEN']  # mikel2026
+          url   = os.environ['DEPLOY_URL']
+          token = os.environ['DEPLOY_TOKEN']
 
-          SKIP_FILES = {
-              'content.js', 'image.png', 'content.backup.js',
-              'contentactual.js', 'diag.py', 'diag.php'
-          }
-          SKIP_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
-          SKIP_EXTS  = {'.bak', '.mp4', '.webm', '.mov'}
-          FIRST_ONLY = {'content.js', 'image.png', 'es/content.js'}
+          SKIP_FILES = {'content.js','image.png','content.backup.js','contentactual.js','diag.py','diag.php'}
+          SKIP_DIRS  = {'.git','.github','deploy','uploads','node_modules'}
+          SKIP_EXTS  = {'.bak','.mp4','.webm','.mov'}
 
-          def deploy_file(rel_path):
-              with open(rel_path, 'rb') as f:
-                  content = f.read()
-              result = subprocess.run([
-                  'curl', '-s', '-X', 'POST', url,
-                  '-F', f'token={token}',
-                  '-F', f'deploy_file={rel_path}',
-                  '-F', f'deploy_content=<{rel_path}',
-              ], capture_output=True, text=True)
-              resp = result.stdout.strip()
-              if '"ok":true' in resp:
-                  print(f'  OK  {rel_path}  ({len(content)} bytes)')
-              else:
-                  print(f'  ERR {rel_path}: {resp[:120]}')
+          BOUNDARY = b'GHDeployBoundary1234'
+
+          def multipart(fields):
+              body = b''
+              for name, value in fields:
+                  if isinstance(value, str): value = value.encode('utf-8')
+                  body += b'--' + BOUNDARY + b'\r\n'
+                  body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+                  body += value + b'\r\n'
+              body += b'--' + BOUNDARY + b'--\r\n'
+              return body
+
+          def deploy_file(rel):
+              with open(rel, 'rb') as f:
+                  data = f.read()
+              body = multipart([('token', token), ('deploy_file', rel), ('deploy_content', data)])
+              req = urllib.request.Request(
+                  url, data=body,
+                  headers={'Content-Type': 'multipart/form-data; boundary=' + BOUNDARY.decode()},
+                  method='POST')
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      resp = r.read().decode('utf-8','replace')
+                  if '"ok":true' in resp:
+                      print(f'  OK   {rel}  ({len(data)} B)')
+                      return True
+                  print(f'  ERR  {rel}: {resp[:150]}')
                   return False
-              return True
+              except urllib.error.HTTPError as e:
+                  print(f'  HTTP {e.code}  {rel}: {e.read().decode("utf-8","replace")[:150]}')
+                  return False
+              except Exception as e:
+                  print(f'  FAIL {rel}: {e}')
+                  return False
 
           errors = []
           for root, dirs, files in os.walk('.'):
-              # filtrar dirs excluidos
-              dirs[:] = [d for d in sorted(dirs)
-                         if d not in SKIP_DIRS and not d.startswith('.')]
+              dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith('.'))
               for fname in sorted(files):
-                  if fname.startswith('.') and fname != '.htaccess':
-                      continue
-                  ext = os.path.splitext(fname)[1].lower()
-                  if fname in SKIP_FILES or ext in SKIP_EXTS:
-                      print(f'  SKIP {fname}')
-                      continue
+                  if fname.startswith('.') and fname != '.htaccess': continue
+                  if fname in SKIP_FILES or os.path.splitext(fname)[1].lower() in SKIP_EXTS:
+                      print(f'  SKIP {fname}'); continue
                   rel = os.path.relpath(os.path.join(root, fname), '.').replace('\\','/')
-                  if not deploy_file(rel):
-                      errors.append(rel)
+                  if not deploy_file(rel): errors.append(rel)
 
           if errors:
-              print(f'\nERRORS ({len(errors)}): {errors}')
-              sys.exit(1)
-          else:
-              print('\nDeploy complete — all files deployed via PHP.')
+              print(f'\nFailed ({len(errors)}): {errors}'); sys.exit(1)
+          print('\nDeploy complete.')
           PYEOF
 
       # ── Paso 3: content.js y image.png solo en primer deploy ──────────
