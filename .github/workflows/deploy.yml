@@ -17,110 +17,126 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      # Deploy all code files — excludes user-managed content
-      - name: Deploy code files
+      # ── Diagnóstico: ver estructura remota ──────────────────────────
+      - name: Diagnose remote directory
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          lftp -c "
-            set ftp:ssl-allow no;
-            set ftp:passive-mode yes;
-            set net:max-retries 3;
-            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-            mirror --reverse --verbose \
-              --exclude-glob .git \
-              --exclude-glob .github/ \
-              --exclude-glob deploy/ \
-              --exclude-glob '*.bak' \
-              --exclude-glob '*.mp4' \
-              --exclude-glob diag.py \
-              --exclude-glob content.backup.js \
-              --exclude-glob content.js \
-              --exclude-glob image.png \
-              --exclude-glob es/content.js \
-              --exclude-glob uploads/ \
-              . httpdocs/;
-          "
+          lftp -c "set ftp:ssl-allow no; set ftp:passive-mode yes; open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST; pwd; ls;" || true
 
-      # Upload content.js only if it does NOT exist on the server yet
+      # ── Upload con Python ftplib (más fiable que mirror) ───────────
+      - name: Deploy files via Python FTP
+        env:
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          python3 - <<'PYEOF'
+          import ftplib, os, sys
+
+          EXCLUDE_FILES = {
+              'content.js', 'image.png', 'content.backup.js',
+              'contentactual.js', 'diag.py'
+          }
+          EXCLUDE_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
+          EXCLUDE_EXTS  = {'.bak', '.mp4', '.webm', '.mov'}
+          FIRST_DEPLOY_FILES = {'content.js', 'image.png'}  # gestionados por el admin
+
+          host = os.environ['FTP_HOST']
+          user = os.environ['FTP_USER']
+          pwd  = os.environ['FTP_PASS']
+
+          ftp = ftplib.FTP()
+          ftp.set_pasv(True)
+          ftp.connect(host, 21, timeout=30)
+          ftp.login(user, pwd)
+
+          print('Remote CWD:', ftp.pwd())
+          print('Remote LS:')
+          ftp.retrlines('LIST')
+
+          # Detectar si el FTP root ya ES httpdocs o si es el nivel superior
+          listing = []
+          ftp.retrlines('NLST', listing.append)
+          if 'httpdocs' in listing:
+              remote_root = 'httpdocs'
+              print('>> Using remote path: httpdocs/')
+          else:
+              remote_root = '.'
+              print('>> FTP root appears to be web root directly, using ./')
+
+          def ensure_dir(path):
+              try:
+                  ftp.mkd(path)
+                  print(f'  Created dir: {path}')
+              except ftplib.error_perm:
+                  pass  # ya existe
+
+          def upload_dir(local_dir, remote_dir):
+              if remote_dir != '.':
+                  ensure_dir(remote_dir)
+              items = sorted(os.listdir(local_dir))
+              for item in items:
+                  if item.startswith('.') and item not in ['.htaccess']:
+                      continue
+                  local_path  = os.path.join(local_dir, item)
+                  remote_path = remote_dir.rstrip('/') + '/' + item if remote_dir != '.' else item
+                  if os.path.isdir(local_path):
+                      if item in EXCLUDE_DIRS:
+                          print(f'  Skip dir: {item}')
+                          continue
+                      upload_dir(local_path, remote_path)
+                  else:
+                      ext = os.path.splitext(item)[1].lower()
+                      if item in EXCLUDE_FILES or ext in EXCLUDE_EXTS:
+                          print(f'  Skip file: {item}')
+                          continue
+                      print(f'  Upload: {local_path} -> {remote_path}')
+                      with open(local_path, 'rb') as f:
+                          ftp.storbinary('STOR ' + remote_path, f)
+
+          upload_dir('.', remote_root)
+          ftp.quit()
+          print('Deploy complete.')
+          PYEOF
+
+      # ── content.js: solo si no existe (gestionado por admin) ───────
       - name: Upload content.js (first deploy only)
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          set +e
-          EXISTS=$(lftp -c "
-            set ftp:ssl-allow no;
-            set ftp:passive-mode yes;
-            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-            cls httpdocs/content.js;
-          " 2>&1)
-          set -e
-          if [ -z "$EXISTS" ]; then
-            echo "content.js not found on server — uploading initial version..."
-            lftp -c "
-              set ftp:ssl-allow no;
-              set ftp:passive-mode yes;
-              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-              put content.js -o httpdocs/content.js;
-            "
-          else
-            echo "content.js already exists on server — skipping (managed by admin panel)."
-          fi
+          python3 - <<'PYEOF'
+          import ftplib, os
 
-      # Upload image.png only if it does NOT exist on the server yet
-      - name: Upload image.png (first deploy only)
-        env:
-          FTP_USER: ${{ secrets.FTP_USERNAME }}
-          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
-        run: |
-          set +e
-          EXISTS=$(lftp -c "
-            set ftp:ssl-allow no;
-            set ftp:passive-mode yes;
-            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-            cls httpdocs/image.png;
-          " 2>&1)
-          set -e
-          if [ -z "$EXISTS" ]; then
-            echo "image.png not found on server — uploading initial version..."
-            lftp -c "
-              set ftp:ssl-allow no;
-              set ftp:passive-mode yes;
-              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-              put image.png -o httpdocs/image.png;
-            "
-          else
-            echo "image.png already exists on server — skipping (managed by admin panel)."
-          fi
+          host = os.environ['FTP_HOST']
+          user = os.environ['FTP_USER']
+          pwd  = os.environ['FTP_PASS']
 
-      # Upload es/content.js only if it does NOT exist on the server yet
-      - name: Upload es/content.js (first deploy only)
-        env:
-          FTP_USER: ${{ secrets.FTP_USERNAME }}
-          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
-        run: |
-          set +e
-          EXISTS=$(lftp -c "
-            set ftp:ssl-allow no;
-            set ftp:passive-mode yes;
-            open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-            cls httpdocs/es/content.js;
-          " 2>&1)
-          set -e
-          if [ -z "$EXISTS" ]; then
-            echo "es/content.js not found on server — uploading initial version..."
-            lftp -c "
-              set ftp:ssl-allow no;
-              set ftp:passive-mode yes;
-              open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST;
-              put es/content.js -o httpdocs/es/content.js;
-            "
-          else
-            echo "es/content.js already exists on server — skipping (managed by admin panel)."
-          fi
+          ftp = ftplib.FTP()
+          ftp.set_pasv(True)
+          ftp.connect(host, 21, timeout=30)
+          ftp.login(user, pwd)
+
+          listing = []
+          ftp.retrlines('NLST', listing.append)
+          prefix = 'httpdocs/' if 'httpdocs' in listing else ''
+
+          for fname, local in [('content.js', 'content.js'), ('image.png', 'image.png'), ('es/content.js', 'es/content.js')]:
+              remote = prefix + fname
+              try:
+                  ftp.size(remote)
+                  print(f'{remote} already exists — skipping (managed by admin)')
+              except ftplib.error_perm:
+                  print(f'{remote} not found — uploading initial version')
+                  if '/' in fname:
+                      try: ftp.mkd(prefix + fname.rsplit('/',1)[0])
+                      except: pass
+                  with open(local, 'rb') as f:
+                      ftp.storbinary('STOR ' + remote, f)
+
+          ftp.quit()
+          PYEOF
