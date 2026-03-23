@@ -710,8 +710,49 @@ function removeLogo(i) {
   renderLogosAdmin();
 }
 
+// ─── MIGRAR BASE64 AL SERVIDOR ───────────────────────────────────────
+function dataUrlToFile(dataUrl, filename) {
+  const arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  const u8 = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
+  const ext = mime.split('/')[1].replace('jpeg','jpg').replace('svg+xml','svg');
+  return new File([u8], filename + '.' + ext, { type: mime });
+}
+
+async function migrateBase64(el, filename) {
+  if (!el || !el.value.startsWith('data:')) return;
+  try {
+    const file = dataUrlToFile(el.value, filename);
+    const path = await uploadToServer(file);
+    el.value = path;
+  } catch(e) {
+    console.warn('No se pudo migrar base64 al servidor:', e.message);
+  }
+}
+
+async function migrateAllBase64() {
+  const tasks = [];
+  tasks.push(migrateBase64(document.getElementById('about-photo-b64'), 'about-photo'));
+  const logoCount = CONTENT.impact.logos ? CONTENT.impact.logos.length : 0;
+  for (let i = 0; i < logoCount; i++)
+    tasks.push(migrateBase64(document.getElementById('lb64-' + i), 'logo-' + i));
+  const pinCount = CONTENT.map && CONTENT.map.pins ? CONTENT.map.pins.length : 0;
+  for (let i = 0; i < pinCount; i++)
+    tasks.push(migrateBase64(document.getElementById('pimg-' + i), 'pin-' + i));
+  await Promise.all(tasks);
+}
+
 // ─── GUARDAR ─────────────────────────────────────────────────────────
-function saveContent() {
+async function saveContent() {
+  const btn = document.querySelector('.btn-save');
+  btn.textContent = 'Preparando…';
+  btn.disabled = true;
+
+  // Subir al servidor cualquier imagen que todavía esté en base64
+  showToast('Migrando imágenes al servidor…');
+  await migrateAllBase64();
+
   const C = {};
 
   C.hero = {
@@ -802,9 +843,7 @@ const CONTENT = ${JSON.stringify(C, null, 2)};
   form.append('token', ADMIN_PASSWORD);
   form.append('content', js);
 
-  const btn = document.querySelector('.btn-save');
   btn.textContent = 'Guardando…';
-  btn.disabled = true;
 
   fetch('save.php', { method: 'POST', body: form })
     .then(function(r) {
