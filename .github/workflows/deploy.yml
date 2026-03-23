@@ -14,24 +14,90 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install lftp
-        run: sudo apt-get install -y lftp
-
-      - name: Deploy all files via FTP
+      - name: Deploy all files via FTP (Python ftplib)
         env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          # Write lftp script — each command on its own line, no backslash continuations
-          printf 'set ftp:ssl-allow no\n' > /tmp/deploy.lftp
-          printf 'set ftp:passive-mode yes\n' >> /tmp/deploy.lftp
-          printf 'open -u "%s","%s" ftp://%s\n' "$FTP_USER" "$FTP_PASS" "$FTP_HOST" >> /tmp/deploy.lftp
-          printf 'mirror --reverse --verbose --exclude-glob .git/ --exclude-glob .github/ --exclude-glob deploy/ --exclude-glob uploads/ --exclude-glob node_modules/ --exclude-glob content.backup.js --exclude-glob contentactual.js --exclude-glob diag.py --exclude-glob diag.php --exclude \\.mp4$ --exclude \\.webm$ --exclude \\.mov$ --exclude \\.bak$ . httpdocs/\n' >> /tmp/deploy.lftp
-          printf 'bye\n' >> /tmp/deploy.lftp
+          python3 << 'PYEOF'
+          import os, sys
+          from ftplib import FTP
 
-          echo "=== Script lftp a ejecutar ==="
-          cat /tmp/deploy.lftp
-          echo "=============================="
+          HOST = os.environ['FTP_HOST']
+          USER = os.environ['FTP_USER']
+          PASS = os.environ['FTP_PASS']
 
-          lftp -f /tmp/deploy.lftp
+          REMOTE_ROOT = 'httpdocs'
+
+          SKIP_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
+          SKIP_FILES = {'content.backup.js', 'contentactual.js', 'diag.py', 'diag.php'}
+          SKIP_EXTS  = {'.mp4', '.webm', '.mov', '.bak'}
+
+          ftp = FTP()
+          ftp.connect(HOST, 21)
+          ftp.login(USER, PASS)
+          ftp.set_pasv(True)
+          print(f'Conectado: {ftp.getwelcome()}')
+
+          def ftp_makedirs(ftp, remote_path):
+              """Create remote directory and all parents if they don't exist."""
+              parts = remote_path.replace('\\', '/').split('/')
+              current = ''
+              for part in parts:
+                  if not part:
+                      continue
+                  current = current + '/' + part if current else part
+                  try:
+                      ftp.mkd(current)
+                  except Exception:
+                      pass  # already exists
+
+          def upload_file(ftp, local_path, remote_path):
+              remote_dir = '/'.join(remote_path.split('/')[:-1])
+              if remote_dir:
+                  ftp_makedirs(ftp, remote_dir)
+              with open(local_path, 'rb') as f:
+                  ftp.storbinary(f'STOR {remote_path}', f)
+              print(f'  OK   {remote_path}')
+              return True
+
+          errors = []
+          for root, dirs, files in os.walk('.'):
+              # Filter dirs in-place
+              dirs[:] = sorted(
+                  d for d in dirs
+                  if d not in SKIP_DIRS and not d.startswith('.')
+              )
+
+              for fname in sorted(files):
+                  # Skip hidden except .htaccess
+                  if fname.startswith('.') and fname != '.htaccess':
+                      continue
+                  # Skip by name
+                  if fname in SKIP_FILES:
+                      print(f'  SKIP {fname}')
+                      continue
+                  # Skip by extension
+                  ext = os.path.splitext(fname)[1].lower()
+                  if ext in SKIP_EXTS:
+                      print(f'  SKIP {fname}')
+                      continue
+
+                  local  = os.path.join(root, fname)
+                  rel    = os.path.relpath(local, '.').replace('\\', '/')
+                  remote = REMOTE_ROOT + '/' + rel
+
+                  try:
+                      upload_file(ftp, local, remote)
+                  except Exception as e:
+                      print(f'  ERR  {remote}: {e}')
+                      errors.append(rel)
+
+          ftp.quit()
+
+          if errors:
+              print(f'\nFallaron ({len(errors)}): {errors}')
+              sys.exit(1)
+          print('\nDeploy completo.')
+          PYEOF
