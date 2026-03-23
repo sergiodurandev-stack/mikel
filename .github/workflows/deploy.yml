@@ -67,10 +67,15 @@ jobs:
               remote_root = '.'
               print('>> FTP root appears to be web root directly, using ./')
 
+          def chmod(path, mode):
+              try: ftp.sendcmd(f'SITE CHMOD {mode} {path}')
+              except: pass
+
           def ensure_dir(path):
               try:
                   ftp.mkd(path)
                   print(f'  Created dir: {path}')
+                  chmod(path, '755')
               except ftplib.error_perm:
                   pass  # ya existe
 
@@ -96,6 +101,7 @@ jobs:
                       print(f'  Upload: {local_path} -> {remote_path}')
                       with open(local_path, 'rb') as f:
                           ftp.storbinary('STOR ' + remote_path, f)
+                      chmod(remote_path, '644')
 
           upload_dir('.', remote_root)
           ftp.quit()
