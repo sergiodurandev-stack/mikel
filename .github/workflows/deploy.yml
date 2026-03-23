@@ -1,4 +1,4 @@
-name: Deploy via FTP
+name: Deploy via HTTP
 
 on:
   push:
@@ -14,149 +14,114 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ── Paso 1: subir save.php via FTP (él mismo habilita el resto) ──
+      # save.php ya existe en el server, FTP puede sobreescribir archivos existentes
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      # ── Diagnóstico: ver estructura remota ──────────────────────────
-      - name: Diagnose remote directory
+      - name: Update save.php via FTP (existing file — FTP overwrite works)
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          lftp -c "set ftp:ssl-allow no; set ftp:passive-mode yes; open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST; pwd; ls;" || true
+          lftp -c "set ftp:ssl-allow no; set ftp:passive-mode yes; open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST; put save.php -o httpdocs/save.php;"
 
-      # ── Upload con Python ftplib (más fiable que mirror) ───────────
-      - name: Deploy files via Python FTP
+      # ── Paso 2: deploy todos los archivos via HTTP (PHP los crea con permisos correctos) ──
+      - name: Deploy all files via HTTP
         env:
-          FTP_USER: ${{ secrets.FTP_USERNAME }}
-          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import ftplib, os, sys
+          import os, sys, subprocess
 
-          EXCLUDE_FILES = {
+          url   = os.environ['DEPLOY_URL']    # https://saezdevicuna.eus/save.php
+          token = os.environ['DEPLOY_TOKEN']  # mikel2026
+
+          SKIP_FILES = {
               'content.js', 'image.png', 'content.backup.js',
-              'contentactual.js', 'diag.py'
+              'contentactual.js', 'diag.py', 'diag.php'
           }
-          EXCLUDE_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
-          EXCLUDE_EXTS  = {'.bak', '.mp4', '.webm', '.mov'}
-          FIRST_DEPLOY_FILES = {'content.js', 'image.png'}  # gestionados por el admin
+          SKIP_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
+          SKIP_EXTS  = {'.bak', '.mp4', '.webm', '.mov'}
+          FIRST_ONLY = {'content.js', 'image.png', 'es/content.js'}
 
-          host = os.environ['FTP_HOST']
-          user = os.environ['FTP_USER']
-          pwd  = os.environ['FTP_PASS']
+          def deploy_file(rel_path):
+              with open(rel_path, 'rb') as f:
+                  content = f.read()
+              result = subprocess.run([
+                  'curl', '-s', '-X', 'POST', url,
+                  '-F', f'token={token}',
+                  '-F', f'deploy_file={rel_path}',
+                  '-F', f'deploy_content=<{rel_path}',
+              ], capture_output=True, text=True)
+              resp = result.stdout.strip()
+              if '"ok":true' in resp:
+                  print(f'  OK  {rel_path}  ({len(content)} bytes)')
+              else:
+                  print(f'  ERR {rel_path}: {resp[:120]}')
+                  return False
+              return True
 
-          ftp = ftplib.FTP()
-          ftp.set_pasv(True)
-          ftp.connect(host, 21, timeout=30)
-          ftp.login(user, pwd)
-
-          print('Remote CWD:', ftp.pwd())
-          print('Remote LS:')
-          ftp.retrlines('LIST')
-
-          # Detectar si el FTP root ya ES httpdocs o si es el nivel superior
-          listing = []
-          ftp.retrlines('NLST', listing.append)
-          if 'httpdocs' in listing:
-              remote_root = 'httpdocs'
-              print('>> Using remote path: httpdocs/')
-          else:
-              remote_root = '.'
-              print('>> FTP root appears to be web root directly, using ./')
-
-          def chmod(path, mode):
-              try: ftp.sendcmd(f'SITE CHMOD {mode} {path}')
-              except: pass
-
-          def ensure_dir(path):
-              try:
-                  ftp.mkd(path)
-                  print(f'  Created dir: {path}')
-                  chmod(path, '755')
-              except ftplib.error_perm:
-                  pass  # ya existe
-
-          def upload_dir(local_dir, remote_dir):
-              if remote_dir != '.':
-                  ensure_dir(remote_dir)
-              items = sorted(os.listdir(local_dir))
-              for item in items:
-                  if item.startswith('.') and item not in ['.htaccess']:
+          errors = []
+          for root, dirs, files in os.walk('.'):
+              # filtrar dirs excluidos
+              dirs[:] = [d for d in sorted(dirs)
+                         if d not in SKIP_DIRS and not d.startswith('.')]
+              for fname in sorted(files):
+                  if fname.startswith('.') and fname != '.htaccess':
                       continue
-                  local_path  = os.path.join(local_dir, item)
-                  remote_path = remote_dir.rstrip('/') + '/' + item if remote_dir != '.' else item
-                  if os.path.isdir(local_path):
-                      if item in EXCLUDE_DIRS:
-                          print(f'  Skip dir: {item}')
-                          continue
-                      upload_dir(local_path, remote_path)
-                  else:
-                      ext = os.path.splitext(item)[1].lower()
-                      if item in EXCLUDE_FILES or ext in EXCLUDE_EXTS:
-                          print(f'  Skip file: {item}')
-                          continue
-                      print(f'  Upload: {local_path} -> {remote_path}')
-                      with open(local_path, 'rb') as f:
-                          ftp.storbinary('STOR ' + remote_path, f)
-                      chmod(remote_path, '644')
+                  ext = os.path.splitext(fname)[1].lower()
+                  if fname in SKIP_FILES or ext in SKIP_EXTS:
+                      print(f'  SKIP {fname}')
+                      continue
+                  rel = os.path.relpath(os.path.join(root, fname), '.').replace('\\','/')
+                  if not deploy_file(rel):
+                      errors.append(rel)
 
-          upload_dir('.', remote_root)
-
-          print('\n--- Permisos en httpdocs/ (dirs test1 y es) ---')
-          try:
-              ftp.retrlines('LIST ' + remote_root, print)
-          except Exception as e:
-              print('Error:', e)
-
-          print('\n--- SITE CHMOD test ---')
-          try:
-              r = ftp.sendcmd('SITE CHMOD 755 ' + remote_root + '/test1')
-              print('CHMOD result:', r)
-          except Exception as e:
-              print('CHMOD NOT supported:', e)
-
-          ftp.quit()
-          print('Deploy complete.')
+          if errors:
+              print(f'\nERRORS ({len(errors)}): {errors}')
+              sys.exit(1)
+          else:
+              print('\nDeploy complete — all files deployed via PHP.')
           PYEOF
 
-      # ── content.js: solo si no existe (gestionado por admin) ───────
-      - name: Upload content.js (first deploy only)
+      # ── Paso 3: content.js y image.png solo en primer deploy ──────────
+      - name: Upload content.js / image.png (first deploy only)
         env:
-          FTP_USER: ${{ secrets.FTP_USERNAME }}
-          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
         run: |
           python3 - <<'PYEOF'
-          import ftplib, os
+          import os, subprocess, json
 
-          host = os.environ['FTP_HOST']
-          user = os.environ['FTP_USER']
-          pwd  = os.environ['FTP_PASS']
+          url   = os.environ['DEPLOY_URL']
+          token = os.environ['DEPLOY_TOKEN']
 
-          ftp = ftplib.FTP()
-          ftp.set_pasv(True)
-          ftp.connect(host, 21, timeout=30)
-          ftp.login(user, pwd)
-
-          listing = []
-          ftp.retrlines('NLST', listing.append)
-          prefix = 'httpdocs/' if 'httpdocs' in listing else ''
-
-          for fname, local in [('content.js', 'content.js'), ('image.png', 'image.png'), ('es/content.js', 'es/content.js')]:
-              remote = prefix + fname
+          def exists_on_server(rel):
+              import urllib.request
+              site = url.replace('/save.php','')
               try:
-                  ftp.size(remote)
-                  print(f'{remote} already exists — skipping (managed by admin)')
-              except ftplib.error_perm:
-                  print(f'{remote} not found — uploading initial version')
-                  if '/' in fname:
-                      try: ftp.mkd(prefix + fname.rsplit('/',1)[0])
-                      except: pass
-                  with open(local, 'rb') as f:
-                      ftp.storbinary('STOR ' + remote, f)
+                  r = urllib.request.urlopen(f'{site}/{rel}', timeout=5)
+                  return r.status == 200
+              except:
+                  return False
 
-          ftp.quit()
+          def deploy_first(rel, local):
+              if exists_on_server(rel):
+                  print(f'  EXISTS  {rel} — skipping (managed by admin)')
+                  return
+              result = subprocess.run([
+                  'curl', '-s', '-X', 'POST', url,
+                  '-F', f'token={token}',
+                  '-F', f'deploy_file={rel}',
+                  '-F', f'deploy_content=<{local}',
+              ], capture_output=True, text=True)
+              resp = result.stdout.strip()
+              print(f'  UPLOAD  {rel}: {resp[:80]}')
+
+          deploy_first('content.js',    'content.js')
+          deploy_first('image.png',     'image.png')
+          deploy_first('es/content.js', 'es/content.js')
           PYEOF

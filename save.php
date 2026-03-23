@@ -69,6 +69,37 @@ if (isset($_FILES['file'])) {
 $token    = $_POST['token']   ?? '';
 $content  = $_POST['content'] ?? '';
 
+// ─── MODO DEPLOY: escribe cualquier archivo del sitio ─────────────────
+if (isset($_POST['deploy_file'])) {
+    if ($token !== ADMIN_PASSWORD) {
+        ob_end_clean();
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
+        exit;
+    }
+    $rel  = $_POST['deploy_file'] ?? '';
+    $data = $_POST['deploy_content'] ?? '';
+    // Seguridad: solo permitir rutas relativas sin ..
+    if (empty($rel) || strpos($rel, '..') !== false || $rel[0] === '/') {
+        ob_end_clean();
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Ruta inválida']);
+        exit;
+    }
+    $target = __DIR__ . '/' . $rel;
+    $dir    = dirname($target);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $result = file_put_contents($target, $data);
+    ob_end_clean();
+    if ($result === false) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'No se pudo escribir ' . $rel]);
+    } else {
+        echo json_encode(['ok' => true, 'file' => $rel, 'bytes' => $result]);
+    }
+    exit;
+}
+
 // Verificar contraseña
 if ($token !== ADMIN_PASSWORD) {
     http_response_code(403);
