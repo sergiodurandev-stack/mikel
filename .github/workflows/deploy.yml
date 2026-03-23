@@ -32,7 +32,7 @@ jobs:
           printf 'open -u "%s","%s" ftp://%s\n' "$FTP_USER" "$FTP_PASS" "$FTP_HOST" >> /tmp/deploy.lftp
 
           cat >> /tmp/deploy.lftp << 'LFTP_COMMANDS'
-          mirror --reverse --verbose --only-newer \
+          mirror --reverse --verbose \
             --exclude-glob .git/ \
             --exclude-glob .github/ \
             --exclude-glob deploy/ \
