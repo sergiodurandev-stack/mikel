@@ -43,28 +43,23 @@ jobs:
           SKIP_DIRS  = {'.git','.github','deploy','uploads','node_modules'}
           SKIP_EXTS  = {'.bak','.mp4','.webm','.mov'}
 
-          BOUNDARY = b'GHDeployBoundary1234'
-
-          def multipart(fields):
-              body = b''
-              for name, value in fields:
-                  if isinstance(value, str): value = value.encode('utf-8')
-                  body += b'--' + BOUNDARY + b'\r\n'
-                  body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
-                  body += value + b'\r\n'
-              body += b'--' + BOUNDARY + b'--\r\n'
-              return body
+          import base64, urllib.parse
 
           def deploy_file(rel):
               with open(rel, 'rb') as f:
                   data = f.read()
-              body = multipart([('token', token), ('deploy_file', rel), ('deploy_content', data)])
+              b64 = base64.b64encode(data).decode('ascii')
+              body = urllib.parse.urlencode({
+                  'token': token,
+                  'deploy_file': rel,
+                  'deploy_b64': b64
+              }).encode('ascii')
               req = urllib.request.Request(
                   url, data=body,
-                  headers={'Content-Type': 'multipart/form-data; boundary=' + BOUNDARY.decode()},
+                  headers={'Content-Type': 'application/x-www-form-urlencoded'},
                   method='POST')
               try:
-                  with urllib.request.urlopen(req, timeout=30) as r:
+                  with urllib.request.urlopen(req, timeout=60) as r:
                       resp = r.read().decode('utf-8','replace')
                   if '"ok":true' in resp:
                       print(f'  OK   {rel}  ({len(data)} B)')

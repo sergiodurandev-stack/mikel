@@ -78,7 +78,8 @@ if (isset($_POST['deploy_file'])) {
         exit;
     }
     $rel  = $_POST['deploy_file'] ?? '';
-    $data = $_POST['deploy_content'] ?? '';
+    $raw  = $_POST['deploy_b64'] ?? '';
+    $data = $raw ? base64_decode($raw) : ($_POST['deploy_content'] ?? '');
     // Seguridad: solo permitir rutas relativas sin ..
     if (empty($rel) || strpos($rel, '..') !== false || $rel[0] === '/') {
         ob_end_clean();
