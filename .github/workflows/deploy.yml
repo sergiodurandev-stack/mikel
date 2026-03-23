@@ -105,17 +105,18 @@ jobs:
 
           upload_dir('.', remote_root)
 
-          print('\n--- Diagnostico permisos test1 ---')
+          print('\n--- Permisos en httpdocs/ (dirs test1 y es) ---')
           try:
-              ftp.retrlines('LIST ' + remote_root + '/test1', print)
+              ftp.retrlines('LIST ' + remote_root, print)
           except Exception as e:
-              print('Error listando test1:', e)
+              print('Error:', e)
 
-          print('\n--- Diagnostico permisos httpdocs/es ---')
+          print('\n--- SITE CHMOD test ---')
           try:
-              ftp.retrlines('LIST ' + remote_root + '/es', print)
+              r = ftp.sendcmd('SITE CHMOD 755 ' + remote_root + '/test1')
+              print('CHMOD result:', r)
           except Exception as e:
-              print('Error listando es:', e)
+              print('CHMOD NOT supported:', e)
 
           ftp.quit()
           print('Deploy complete.')
