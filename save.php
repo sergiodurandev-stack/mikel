@@ -4,14 +4,20 @@
 // Misma contraseña que admin.html
 // ============================================================
 
+// Suprimir warnings/notices que romperían el JSON
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start(); // capturar cualquier output accidental
+
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: same-origin');
+header('Access-Control-Allow-Origin: *');
 
 // ─── CONTRASEÑA (debe coincidir con admin.html) ───────────────
 define('ADMIN_PASSWORD', 'mikel2026');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
+    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
     exit;
 }
@@ -22,6 +28,7 @@ $content  = $_POST['content'] ?? '';
 // Verificar contraseña
 if ($token !== ADMIN_PASSWORD) {
     http_response_code(403);
+    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'No autorizado']);
     exit;
 }
@@ -29,12 +36,14 @@ if ($token !== ADMIN_PASSWORD) {
 // Verificar que el contenido no esté vacío y sea JS válido
 if (empty($content)) {
     http_response_code(400);
+    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Contenido vacío']);
     exit;
 }
 
 if (strpos($content, 'const CONTENT') === false) {
     http_response_code(400);
+    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Contenido inválido']);
     exit;
 }
@@ -57,8 +66,10 @@ $result = file_put_contents($file, $content);
 
 if ($result === false) {
     http_response_code(500);
+    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'No se pudo escribir el archivo. Verifica permisos.']);
     exit;
 }
 
+ob_end_clean();
 echo json_encode(['ok' => true, 'bytes' => $result]);
