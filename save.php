@@ -22,6 +22,50 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── MODO UPLOAD DE ARCHIVO ───────────────────────────────────────────
+if (isset($_FILES['file'])) {
+    if ($token !== ADMIN_PASSWORD) {
+        ob_end_clean();
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
+        exit;
+    }
+    $f = $_FILES['file'];
+    if ($f['error'] !== UPLOAD_ERR_OK) {
+        ob_end_clean();
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Error al recibir archivo: ' . $f['error']]);
+        exit;
+    }
+    $origExt = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    if ($origExt === 'svg') {
+        $mime = 'image/svg+xml';
+    } else {
+        $fi = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($fi, $f['tmp_name']);
+        finfo_close($fi);
+    }
+    $allowed = ['image/jpeg','image/png','image/gif','image/svg+xml','image/webp','image/avif','video/mp4','video/webm','video/ogg'];
+    if (!in_array($mime, $allowed)) {
+        ob_end_clean();
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Tipo no permitido: ' . $mime]);
+        exit;
+    }
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+    $filename = uniqid('u', true) . '.' . $origExt;
+    if (!move_uploaded_file($f['tmp_name'], $uploadDir . $filename)) {
+        ob_end_clean();
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'No se pudo guardar el archivo']);
+        exit;
+    }
+    ob_end_clean();
+    echo json_encode(['ok' => true, 'path' => 'uploads/' . $filename]);
+    exit;
+}
+
 $token    = $_POST['token']   ?? '';
 $content  = $_POST['content'] ?? '';
 

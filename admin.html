@@ -615,10 +615,10 @@ async function uploadToServer(file) {
   const form = new FormData();
   form.append('token', ADMIN_PASSWORD);
   form.append('file', file);
-  const res = await fetch('upload.php', { method: 'POST', body: form });
+  const res = await fetch('save.php', { method: 'POST', body: form });
   const text = await res.text();
   let data;
-  try { data = JSON.parse(text); } catch(e) { throw new Error('Respuesta inválida del servidor: ' + text.substring(0, 100)); }
+  try { data = JSON.parse(text); } catch(e) { throw new Error('HTTP ' + res.status + ' — ' + text.substring(0, 150)); }
   if (!data.ok) throw new Error(data.error);
   return data.path;
 }
@@ -722,13 +722,9 @@ function dataUrlToFile(dataUrl, filename) {
 
 async function migrateBase64(el, filename) {
   if (!el || !el.value.startsWith('data:')) return;
-  try {
-    const file = dataUrlToFile(el.value, filename);
-    const path = await uploadToServer(file);
-    el.value = path;
-  } catch(e) {
-    console.warn('No se pudo migrar base64 al servidor:', e.message);
-  }
+  const file = dataUrlToFile(el.value, filename);
+  const path = await uploadToServer(file); // lanza excepción si falla — no continúa con base64
+  el.value = path;
 }
 
 async function migrateAllBase64() {
@@ -750,8 +746,15 @@ async function saveContent() {
   btn.disabled = true;
 
   // Subir al servidor cualquier imagen que todavía esté en base64
-  showToast('Migrando imágenes al servidor…');
-  await migrateAllBase64();
+  try {
+    showToast('Subiendo imágenes al servidor…');
+    await migrateAllBase64();
+  } catch(e) {
+    showToast('Error al subir imagen: ' + e.message);
+    btn.textContent = 'Guardar cambios';
+    btn.disabled = false;
+    return;
+  }
 
   const C = {};
 
