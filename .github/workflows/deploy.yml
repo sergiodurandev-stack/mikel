@@ -43,20 +43,19 @@ jobs:
           SKIP_DIRS  = {'.git','.github','deploy','uploads','node_modules'}
           SKIP_EXTS  = {'.bak','.mp4','.webm','.mov'}
 
-          import base64, urllib.parse
+          import base64, json as jsonlib
 
           def deploy_file(rel):
               with open(rel, 'rb') as f:
                   data = f.read()
-              b64 = base64.b64encode(data).decode('ascii')
-              body = urllib.parse.urlencode({
+              payload = jsonlib.dumps({
                   'token': token,
                   'deploy_file': rel,
-                  'deploy_b64': b64
-              }).encode('ascii')
+                  'deploy_b64': base64.b64encode(data).decode('ascii')
+              }).encode('utf-8')
               req = urllib.request.Request(
-                  url, data=body,
-                  headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                  url, data=payload,
+                  headers={'Content-Type': 'application/json'},
                   method='POST')
               try:
                   with urllib.request.urlopen(req, timeout=60) as r:

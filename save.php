@@ -22,6 +22,42 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ─── LEER CUERPO JSON (para deploy desde GitHub Actions) ─────────────
+$ct = $_SERVER['CONTENT_TYPE'] ?? '';
+if (strpos($ct, 'application/json') !== false) {
+    $json = json_decode(file_get_contents('php://input'), true) ?? [];
+    $token   = $json['token']        ?? '';
+    $rel     = $json['deploy_file']  ?? '';
+    $raw     = $json['deploy_b64']   ?? '';
+    if ($token !== ADMIN_PASSWORD) {
+        ob_end_clean();
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
+        exit;
+    }
+    if ($rel && $raw) {
+        if (strpos($rel, '..') !== false || ($rel[0] ?? '') === '/') {
+            ob_end_clean();
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Ruta inválida']);
+            exit;
+        }
+        $target = __DIR__ . '/' . $rel;
+        $dir    = dirname($target);
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $result = file_put_contents($target, base64_decode($raw));
+        ob_end_clean();
+        echo json_encode($result !== false
+            ? ['ok' => true, 'file' => $rel, 'bytes' => $result]
+            : ['ok' => false, 'error' => 'No se pudo escribir ' . $rel]);
+        exit;
+    }
+    ob_end_clean();
+    http_response_code(400);
+    echo json_encode(['ok' => false, 'error' => 'Faltan campos deploy_file o deploy_b64']);
+    exit;
+}
+
 // ─── MODO UPLOAD DE ARCHIVO ───────────────────────────────────────────
 if (isset($_FILES['file'])) {
     if ($token !== ADMIN_PASSWORD) {
