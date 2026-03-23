@@ -23,31 +23,15 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          # Write lftp script to a temp file to avoid quoting issues with secrets
-          cat > /tmp/deploy.lftp << 'LFTP_SETTINGS'
-          set ftp:ssl-allow no
-          set ftp:passive-mode yes
-          LFTP_SETTINGS
-
+          # Write lftp script — each command on its own line, no backslash continuations
+          printf 'set ftp:ssl-allow no\n' > /tmp/deploy.lftp
+          printf 'set ftp:passive-mode yes\n' >> /tmp/deploy.lftp
           printf 'open -u "%s","%s" ftp://%s\n' "$FTP_USER" "$FTP_PASS" "$FTP_HOST" >> /tmp/deploy.lftp
+          printf 'mirror --reverse --verbose --exclude-glob .git/ --exclude-glob .github/ --exclude-glob deploy/ --exclude-glob uploads/ --exclude-glob node_modules/ --exclude-glob content.backup.js --exclude-glob contentactual.js --exclude-glob diag.py --exclude-glob diag.php --exclude \\.mp4$ --exclude \\.webm$ --exclude \\.mov$ --exclude \\.bak$ . httpdocs/\n' >> /tmp/deploy.lftp
+          printf 'bye\n' >> /tmp/deploy.lftp
 
-          cat >> /tmp/deploy.lftp << 'LFTP_COMMANDS'
-          mirror --reverse --verbose \
-            --exclude-glob .git/ \
-            --exclude-glob .github/ \
-            --exclude-glob deploy/ \
-            --exclude-glob uploads/ \
-            --exclude-glob node_modules/ \
-            --exclude-glob content.backup.js \
-            --exclude-glob contentactual.js \
-            --exclude-glob diag.py \
-            --exclude-glob diag.php \
-            --exclude-glob "*.mp4" \
-            --exclude-glob "*.webm" \
-            --exclude-glob "*.mov" \
-            --exclude-glob "*.bak" \
-            . httpdocs/
-          bye
-          LFTP_COMMANDS
+          echo "=== Script lftp a ejecutar ==="
+          cat /tmp/deploy.lftp
+          echo "=============================="
 
           lftp -f /tmp/deploy.lftp
