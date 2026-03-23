@@ -104,6 +104,19 @@ jobs:
                       chmod(remote_path, '644')
 
           upload_dir('.', remote_root)
+
+          print('\n--- Diagnostico permisos test1 ---')
+          try:
+              ftp.retrlines('LIST ' + remote_root + '/test1', print)
+          except Exception as e:
+              print('Error listando test1:', e)
+
+          print('\n--- Diagnostico permisos httpdocs/es ---')
+          try:
+              ftp.retrlines('LIST ' + remote_root + '/es', print)
+          except Exception as e:
+              print('Error listando es:', e)
+
           ftp.quit()
           print('Deploy complete.')
           PYEOF
