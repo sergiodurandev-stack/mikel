@@ -40,6 +40,7 @@ jobs:
               --exclude-glob content.js \
               --exclude-glob image.png \
               --exclude-glob es/content.js \
+              --exclude-glob uploads/ \
               . httpdocs/;
           "
 
