@@ -1,4 +1,4 @@
-name: Deploy via HTTP
+name: Deploy via FTP
 
 on:
   push:
@@ -14,114 +14,42 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── Paso 1: subir save.php via FTP (él mismo habilita el resto) ──
-      # save.php ya existe en el server, FTP puede sobreescribir archivos existentes
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      - name: Update save.php via FTP (existing file — FTP overwrite works)
+      - name: Deploy all files via FTP
         env:
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
-          lftp -c "set ftp:ssl-allow no; set ftp:passive-mode yes; open -u '$FTP_USER','$FTP_PASS' ftp://$FTP_HOST; put save.php -o httpdocs/save.php;"
+          # Write lftp script to a temp file to avoid quoting issues with secrets
+          cat > /tmp/deploy.lftp << 'LFTP_SETTINGS'
+          set ftp:ssl-allow no
+          set ftp:passive-mode yes
+          LFTP_SETTINGS
 
-      # ── Paso 2: deploy todos los archivos via HTTP (PHP los crea con permisos correctos) ──
-      - name: Deploy all files via HTTP
-        env:
-          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-        run: |
-          python3 - <<'PYEOF'
-          import os, sys, urllib.request, urllib.error
+          printf 'open -u "%s","%s" ftp://%s\n' "$FTP_USER" "$FTP_PASS" "$FTP_HOST" >> /tmp/deploy.lftp
 
-          url   = os.environ['DEPLOY_URL']
-          token = os.environ['DEPLOY_TOKEN']
+          cat >> /tmp/deploy.lftp << 'LFTP_COMMANDS'
+          mirror --reverse --verbose --only-newer \
+            --exclude-glob .git/ \
+            --exclude-glob .github/ \
+            --exclude-glob deploy/ \
+            --exclude-glob uploads/ \
+            --exclude-glob node_modules/ \
+            --exclude-glob content.js \
+            --exclude-glob image.png \
+            --exclude-glob content.backup.js \
+            --exclude-glob contentactual.js \
+            --exclude-glob diag.py \
+            --exclude-glob diag.php \
+            --exclude-glob "*.mp4" \
+            --exclude-glob "*.webm" \
+            --exclude-glob "*.mov" \
+            --exclude-glob "*.bak" \
+            . httpdocs/
+          bye
+          LFTP_COMMANDS
 
-          SKIP_FILES = {'content.js','image.png','content.backup.js','contentactual.js','diag.py','diag.php'}
-          SKIP_DIRS  = {'.git','.github','deploy','uploads','node_modules'}
-          SKIP_EXTS  = {'.bak','.mp4','.webm','.mov'}
-
-          import base64, json as jsonlib
-
-          def deploy_file(rel):
-              with open(rel, 'rb') as f:
-                  data = f.read()
-              payload = jsonlib.dumps({
-                  'token': token,
-                  'deploy_file': rel,
-                  'deploy_b64': base64.b64encode(data).decode('ascii')
-              }).encode('utf-8')
-              req = urllib.request.Request(
-                  url, data=payload,
-                  headers={'Content-Type': 'application/json'},
-                  method='POST')
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      resp = r.read().decode('utf-8','replace')
-                  if '"ok":true' in resp:
-                      print(f'  OK   {rel}  ({len(data)} B)')
-                      return True
-                  print(f'  ERR  {rel}: {resp[:150]}')
-                  return False
-              except urllib.error.HTTPError as e:
-                  print(f'  HTTP {e.code}  {rel}: {e.read().decode("utf-8","replace")[:150]}')
-                  return False
-              except Exception as e:
-                  print(f'  FAIL {rel}: {e}')
-                  return False
-
-          errors = []
-          for root, dirs, files in os.walk('.'):
-              dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith('.'))
-              for fname in sorted(files):
-                  if fname.startswith('.') and fname != '.htaccess': continue
-                  if fname in SKIP_FILES or os.path.splitext(fname)[1].lower() in SKIP_EXTS:
-                      print(f'  SKIP {fname}'); continue
-                  rel = os.path.relpath(os.path.join(root, fname), '.').replace('\\','/')
-                  if not deploy_file(rel): errors.append(rel)
-
-          if errors:
-              print(f'\nFailed ({len(errors)}): {errors}'); sys.exit(1)
-          print('\nDeploy complete.')
-          PYEOF
-
-      # ── Paso 3: content.js y image.png solo en primer deploy ──────────
-      - name: Upload content.js / image.png (first deploy only)
-        env:
-          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-        run: |
-          python3 - <<'PYEOF'
-          import os, subprocess, json
-
-          url   = os.environ['DEPLOY_URL']
-          token = os.environ['DEPLOY_TOKEN']
-
-          def exists_on_server(rel):
-              import urllib.request
-              site = url.replace('/save.php','')
-              try:
-                  r = urllib.request.urlopen(f'{site}/{rel}', timeout=5)
-                  return r.status == 200
-              except:
-                  return False
-
-          def deploy_first(rel, local):
-              if exists_on_server(rel):
-                  print(f'  EXISTS  {rel} — skipping (managed by admin)')
-                  return
-              result = subprocess.run([
-                  'curl', '-s', '-X', 'POST', url,
-                  '-F', f'token={token}',
-                  '-F', f'deploy_file={rel}',
-                  '-F', f'deploy_content=<{local}',
-              ], capture_output=True, text=True)
-              resp = result.stdout.strip()
-              print(f'  UPLOAD  {rel}: {resp[:80]}')
-
-          deploy_first('content.js',    'content.js')
-          deploy_first('image.png',     'image.png')
-          deploy_first('es/content.js', 'es/content.js')
-          PYEOF
+          lftp -f /tmp/deploy.lftp
