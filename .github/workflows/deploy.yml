@@ -38,8 +38,6 @@ jobs:
             --exclude-glob deploy/ \
             --exclude-glob uploads/ \
             --exclude-glob node_modules/ \
-            --exclude-glob content.js \
-            --exclude-glob image.png \
             --exclude-glob content.backup.js \
             --exclude-glob contentactual.js \
             --exclude-glob diag.py \
