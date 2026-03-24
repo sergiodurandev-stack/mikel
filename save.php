@@ -9,6 +9,47 @@ header('Content-Type: application/json');
 // ─── CONTRASEÑA (debe coincidir con admin.html) ───────────────
 define('ADMIN_PASSWORD', 'mikel2026');
 
+// ─── ENDPOINT DE DIAGNÓSTICO: GET /save.php?diag ─────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['diag'])) {
+    $file = __DIR__ . '/content.js';
+    $dir  = __DIR__;
+
+    $phpUser  = function_exists('posix_geteuid')
+        ? (posix_getpwuid(posix_geteuid())['name'] ?? posix_geteuid())
+        : get_current_user();
+
+    $fileOwner = file_exists($file) && function_exists('posix_getpwuid')
+        ? (posix_getpwuid(fileowner($file))['name'] ?? fileowner($file))
+        : (file_exists($file) ? fileowner($file) : 'no existe');
+
+    $dirOwner = function_exists('posix_getpwuid')
+        ? (posix_getpwuid(fileowner($dir))['name'] ?? fileowner($dir))
+        : fileowner($dir);
+
+    echo json_encode([
+        'php_version'      => PHP_VERSION,
+        'php_user'         => $phpUser,
+        'server_software'  => $_SERVER['SERVER_SOFTWARE'] ?? '?',
+        'dir'              => $dir,
+        'dir_writable'     => is_writable($dir),
+        'dir_owner'        => $dirOwner,
+        'dir_perms'        => decoct(fileperms($dir) & 0777),
+        'content_js'       => [
+            'exists'   => file_exists($file),
+            'writable' => file_exists($file) ? is_writable($file) : 'n/a',
+            'owner'    => $fileOwner,
+            'perms'    => file_exists($file) ? decoct(fileperms($file) & 0777) : 'n/a',
+            'size_kb'  => file_exists($file) ? round(filesize($file) / 1024, 1) : 0,
+        ],
+        'open_basedir'     => ini_get('open_basedir') ?: 'no restriction',
+        'post_max_size'    => ini_get('post_max_size'),
+        'upload_max_size'  => ini_get('upload_max_filesize'),
+        'memory_limit'     => ini_get('memory_limit'),
+        'last_php_error'   => error_get_last(),
+    ], JSON_PRETTY_PRINT);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'error' => 'Method not allowed']);

@@ -231,13 +231,9 @@
         <div class="sc-title">Hero</div>
 
         <div class="field">
-          <label class="lbl">Video de fondo</label>
-          <input type="text" id="hero-video" placeholder="video.mp4 o uploads/mi-video.mp4">
-          <div style="margin-top:8px">
-            <label class="btn-upload-label" for="hero-video-file">Subir video (máx. 16 MB)</label>
-            <input type="file" id="hero-video-file" accept="video/mp4,video/webm" onchange="uploadVideo(this)">
-          </div>
-          <div class="hint">Puedes subir el video aquí (si pesa menos de 16 MB) o escribir la ruta manualmente si lo subiste por FTP.</div>
+          <label class="lbl">Video de fondo (nombre del archivo)</label>
+          <input type="text" id="hero-video">
+          <div class="hint">Ej: video.mp4 — El archivo debe estar en la misma carpeta que index.html.</div>
         </div>
 
         <div class="field">
@@ -433,6 +429,18 @@
 
 <div id="toast"></div>
 
+<!-- ── ERROR REPORT MODAL ── -->
+<div id="err-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;align-items:center;justify-content:center">
+  <div style="background:#111;border:1px solid rgba(196,185,154,0.2);padding:28px 32px;max-width:560px;width:90%;border-radius:4px">
+    <div style="font-size:10px;letter-spacing:3px;color:#C4B99A;text-transform:uppercase;margin-bottom:14px">Error — copia este reporte</div>
+    <textarea id="err-report" readonly style="width:100%;height:220px;background:#0a0a0a;border:1px solid rgba(196,185,154,0.15);color:#a8c0a8;font-family:monospace;font-size:11px;padding:12px;resize:none;border-radius:2px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="copyReport()" style="flex:1;background:#C4B99A;color:#1A2E1A;border:none;padding:9px;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;cursor:pointer;border-radius:2px">Copiar</button>
+      <button onclick="document.getElementById('err-modal').style.display='none'" style="flex:1;background:none;border:1px solid rgba(196,185,154,0.2);color:rgba(196,185,154,0.5);padding:9px;font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:2px">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── CONTRASEÑA ──────────────────────────────────────────────────────
 // Cambia esta contraseña por la que prefieras:
@@ -458,6 +466,37 @@ if (sessionStorage.getItem('ms_auth') === '1') {
   document.getElementById('gate').style.display = 'none';
   document.getElementById('panel').style.display = 'block';
   buildForm();
+}
+
+// ─── ERROR REPORT ────────────────────────────────────────────────────
+function showErrorReport(data) {
+  fetch('save.php?diag')
+    .then(r => r.json())
+    .then(diag => {
+      const report = [
+        '=== ERROR AL GUARDAR ===',
+        JSON.stringify(data, null, 2),
+        '',
+        '=== DIAGNÓSTICO SERVIDOR ===',
+        JSON.stringify(diag, null, 2),
+        '',
+        '=== NAVEGADOR ===',
+        'userAgent: ' + navigator.userAgent,
+        'timestamp: ' + new Date().toISOString(),
+      ].join('\n');
+      document.getElementById('err-report').value = report;
+      document.getElementById('err-modal').style.display = 'flex';
+    })
+    .catch(() => {
+      document.getElementById('err-report').value = JSON.stringify(data, null, 2);
+      document.getElementById('err-modal').style.display = 'flex';
+    });
+}
+function copyReport() {
+  const ta = document.getElementById('err-report');
+  ta.select();
+  document.execCommand('copy');
+  showToast('Reporte copiado ✓');
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────
@@ -610,75 +649,36 @@ function showPhotoPreview(src) {
   img.src = src; img.style.display = 'block'; txt.style.display = 'none';
 }
 
-// ─── UPLOAD AL SERVIDOR ──────────────────────────────────────
-async function uploadToServer(file) {
-  const form = new FormData();
-  form.append('token', ADMIN_PASSWORD);
-  form.append('file', file);
-  const res = await fetch('save.php', { method: 'POST', body: form });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch(e) { throw new Error('HTTP ' + res.status + ' — ' + text.substring(0, 150)); }
-  if (!data.ok) throw new Error(data.error);
-  return data.path;
+function uploadPhoto(input) {
+  const file = input.files[0]; if (!file) return;
+  if (file.size > 2 * 1024 * 1024) alert('Advertencia: la imagen pesa más de 2MB. Considera usar una versión más pequeña.');
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('about-photo-b64').value = e.target.result;
+    document.getElementById('about-photo-filename').value = file.name;
+    showPhotoPreview(e.target.result);
+  };
+  r.readAsDataURL(file);
 }
 
-async function uploadPhoto(input) {
+function uploadLogo(input, i) {
   const file = input.files[0]; if (!file) return;
-  showPhotoPreview(URL.createObjectURL(file));
-  showToast('Subiendo foto…');
-  try {
-    const path = await uploadToServer(file);
-    document.getElementById('about-photo-b64').value = path;
-    document.getElementById('about-photo-filename').value = path;
-    showToast('Foto subida al servidor ✓');
-  } catch(e) {
-    showToast('Error al subir foto: ' + e.message);
-  }
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('lb64-' + i).value = e.target.result;
+    document.getElementById('lp-' + i).innerHTML = `<img src="${e.target.result}" alt="Logo ${i+1}">`;
+  };
+  r.readAsDataURL(file);
 }
 
-async function uploadLogo(input, i) {
+function uploadPinImage(input, i) {
   const file = input.files[0]; if (!file) return;
-  document.getElementById('lp-' + i).innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Logo ${i+1}">`;
-  showToast('Subiendo logo…');
-  try {
-    const path = await uploadToServer(file);
-    document.getElementById('lb64-' + i).value = path;
-    showToast('Logo subido al servidor ✓');
-  } catch(e) {
-    showToast('Error al subir logo: ' + e.message);
-  }
-}
-
-async function uploadPinImage(input, i) {
-  const file = input.files[0]; if (!file) return;
-  const preview = URL.createObjectURL(file);
-  document.getElementById('pimgprev-' + i).innerHTML = `<img src="${preview}" alt="Imagen pin">`;
-  showToast('Subiendo imagen…');
-  try {
-    const path = await uploadToServer(file);
-    document.getElementById('pimg-' + i).value = path;
-    showToast('Imagen subida al servidor ✓');
-  } catch(e) {
-    showToast('Error al subir imagen: ' + e.message);
-  }
-}
-
-async function uploadVideo(input) {
-  const file = input.files[0]; if (!file) return;
-  if (file.size > 16 * 1024 * 1024) {
-    showToast('El video supera 16 MB. Súbelo por FTP y escribe la ruta manualmente.');
-    input.value = '';
-    return;
-  }
-  showToast('Subiendo video… puede tardar unos segundos');
-  try {
-    const path = await uploadToServer(file);
-    document.getElementById('hero-video').value = path;
-    showToast('Video subido al servidor ✓');
-  } catch(e) {
-    showToast('Error al subir video: ' + e.message);
-  }
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('pimg-' + i).value = e.target.result;
+    document.getElementById('pimgprev-' + i).innerHTML = `<img src="${e.target.result}" alt="Imagen pin">`;
+  };
+  r.readAsDataURL(file);
 }
 
 function renderLogosAdmin() {
@@ -710,52 +710,8 @@ function removeLogo(i) {
   renderLogosAdmin();
 }
 
-// ─── MIGRAR BASE64 AL SERVIDOR ───────────────────────────────────────
-function dataUrlToFile(dataUrl, filename) {
-  const arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
-  const bstr = atob(arr[1]);
-  const u8 = new Uint8Array(bstr.length);
-  for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
-  const ext = mime.split('/')[1].replace('jpeg','jpg').replace('svg+xml','svg');
-  return new File([u8], filename + '.' + ext, { type: mime });
-}
-
-async function migrateBase64(el, filename) {
-  if (!el || !el.value.startsWith('data:')) return;
-  const file = dataUrlToFile(el.value, filename);
-  const path = await uploadToServer(file); // lanza excepción si falla — no continúa con base64
-  el.value = path;
-}
-
-async function migrateAllBase64() {
-  const tasks = [];
-  tasks.push(migrateBase64(document.getElementById('about-photo-b64'), 'about-photo'));
-  const logoCount = CONTENT.impact.logos ? CONTENT.impact.logos.length : 0;
-  for (let i = 0; i < logoCount; i++)
-    tasks.push(migrateBase64(document.getElementById('lb64-' + i), 'logo-' + i));
-  const pinCount = CONTENT.map && CONTENT.map.pins ? CONTENT.map.pins.length : 0;
-  for (let i = 0; i < pinCount; i++)
-    tasks.push(migrateBase64(document.getElementById('pimg-' + i), 'pin-' + i));
-  await Promise.all(tasks);
-}
-
 // ─── GUARDAR ─────────────────────────────────────────────────────────
-async function saveContent() {
-  const btn = document.querySelector('.btn-save');
-  btn.textContent = 'Preparando…';
-  btn.disabled = true;
-
-  // Subir al servidor cualquier imagen que todavía esté en base64
-  try {
-    showToast('Subiendo imágenes al servidor…');
-    await migrateAllBase64();
-  } catch(e) {
-    showToast('Error al subir imagen: ' + e.message);
-    btn.textContent = 'Guardar cambios';
-    btn.disabled = false;
-    return;
-  }
-
+function saveContent() {
   const C = {};
 
   C.hero = {
@@ -846,37 +802,23 @@ const CONTENT = ${JSON.stringify(C, null, 2)};
   form.append('token', ADMIN_PASSWORD);
   form.append('content', js);
 
+  const btn = document.querySelector('.btn-save');
   btn.textContent = 'Guardando…';
+  btn.disabled = true;
 
   fetch('save.php', { method: 'POST', body: form })
-    .then(function(r) {
-      var status = r.status;
-      return r.text().then(function(text) { return { status: status, text: text }; });
-    })
-    .then(function(res) {
-      try {
-        var data = JSON.parse(res.text);
-        if (data.ok) {
-          clearContentCache().then(function() {
-            showToast('¡Cambios guardados y caché limpiado ✓');
-          });
-        } else {
-          showToast('Error del servidor: ' + data.error);
-          console.error('save.php error:', data.error);
-        }
-      } catch(e) {
-        showToast('Error HTTP ' + res.status + ' — descargando respaldo');
-        console.error('Respuesta no JSON (HTTP ' + res.status + '):', res.text.substring(0, 300));
-        const blob = new Blob([js], { type: 'text/javascript' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'content.js'; a.click();
-        URL.revokeObjectURL(url);
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        clearContentCache().then(function() {
+          showToast('¡Cambios guardados y caché limpiado ✓');
+        });
+      } else {
+        showErrorReport(data);
       }
     })
     .catch(function(err) {
-      showToast('Error de red: ' + err.message + ' — descargando respaldo');
-      console.error('fetch error:', err);
+      showToast('Error de conexión — descargando como respaldo');
       const blob = new Blob([js], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
