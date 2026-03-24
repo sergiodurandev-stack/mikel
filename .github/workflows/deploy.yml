@@ -31,7 +31,7 @@ jobs:
           REMOTE_ROOT = 'httpdocs'
 
           SKIP_DIRS  = {'.git', '.github', 'deploy', 'uploads', 'node_modules'}
-          SKIP_FILES = {'content.backup.js', 'contentactual.js', 'diag.py', 'diag.php'}
+          SKIP_FILES = {'content.js', 'content.backup.js', 'contentactual.js', 'diag.py', 'diag.php'}
           SKIP_EXTS  = {'.mp4', '.webm', '.mov', '.bak'}
 
           ftp = FTP()
