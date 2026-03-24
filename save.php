@@ -4,143 +4,23 @@
 // Misma contraseña que admin.html
 // ============================================================
 
-// Suprimir warnings/notices que romperían el JSON
-error_reporting(0);
-ini_set('display_errors', '0');
-ob_start(); // capturar cualquier output accidental
-
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
 
 // ─── CONTRASEÑA (debe coincidir con admin.html) ───────────────
 define('ADMIN_PASSWORD', 'mikel2026');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
-    exit;
-}
-
-// ─── LEER CUERPO JSON (para deploy desde GitHub Actions) ─────────────
-$ct = $_SERVER['CONTENT_TYPE'] ?? '';
-if (strpos($ct, 'application/json') !== false) {
-    $json = json_decode(file_get_contents('php://input'), true) ?? [];
-    $token   = $json['token']        ?? '';
-    $rel     = $json['deploy_file']  ?? '';
-    $raw     = $json['deploy_b64']   ?? '';
-    if ($token !== ADMIN_PASSWORD) {
-        ob_end_clean();
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
-        exit;
-    }
-    if ($rel && $raw) {
-        if (strpos($rel, '..') !== false || ($rel[0] ?? '') === '/') {
-            ob_end_clean();
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Ruta inválida']);
-            exit;
-        }
-        $target = __DIR__ . '/' . $rel;
-        $dir    = dirname($target);
-        if (!is_dir($dir)) mkdir($dir, 0755, true);
-        $result = file_put_contents($target, base64_decode($raw));
-        ob_end_clean();
-        echo json_encode($result !== false
-            ? ['ok' => true, 'file' => $rel, 'bytes' => $result]
-            : ['ok' => false, 'error' => 'No se pudo escribir ' . $rel]);
-        exit;
-    }
-    ob_end_clean();
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Faltan campos deploy_file o deploy_b64']);
-    exit;
-}
-
-// ─── MODO UPLOAD DE ARCHIVO ───────────────────────────────────────────
-if (isset($_FILES['file'])) {
-    if ($token !== ADMIN_PASSWORD) {
-        ob_end_clean();
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
-        exit;
-    }
-    $f = $_FILES['file'];
-    if ($f['error'] !== UPLOAD_ERR_OK) {
-        ob_end_clean();
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Error al recibir archivo: ' . $f['error']]);
-        exit;
-    }
-    $origExt = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    if ($origExt === 'svg') {
-        $mime = 'image/svg+xml';
-    } else {
-        $fi = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($fi, $f['tmp_name']);
-        finfo_close($fi);
-    }
-    $allowed = ['image/jpeg','image/png','image/gif','image/svg+xml','image/webp','image/avif','video/mp4','video/webm','video/ogg'];
-    if (!in_array($mime, $allowed)) {
-        ob_end_clean();
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Tipo no permitido: ' . $mime]);
-        exit;
-    }
-    $uploadDir = __DIR__ . '/uploads/';
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-    $filename = uniqid('u', true) . '.' . $origExt;
-    if (!move_uploaded_file($f['tmp_name'], $uploadDir . $filename)) {
-        ob_end_clean();
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'No se pudo guardar el archivo']);
-        exit;
-    }
-    ob_end_clean();
-    echo json_encode(['ok' => true, 'path' => 'uploads/' . $filename]);
     exit;
 }
 
 $token    = $_POST['token']   ?? '';
 $content  = $_POST['content'] ?? '';
 
-// ─── MODO DEPLOY: escribe cualquier archivo del sitio ─────────────────
-if (isset($_POST['deploy_file'])) {
-    if ($token !== ADMIN_PASSWORD) {
-        ob_end_clean();
-        http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'No autorizado']);
-        exit;
-    }
-    $rel  = $_POST['deploy_file'] ?? '';
-    $raw  = $_POST['deploy_b64'] ?? '';
-    $data = $raw ? base64_decode($raw) : ($_POST['deploy_content'] ?? '');
-    // Seguridad: solo permitir rutas relativas sin ..
-    if (empty($rel) || strpos($rel, '..') !== false || $rel[0] === '/') {
-        ob_end_clean();
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Ruta inválida']);
-        exit;
-    }
-    $target = __DIR__ . '/' . $rel;
-    $dir    = dirname($target);
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    $result = file_put_contents($target, $data);
-    ob_end_clean();
-    if ($result === false) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'No se pudo escribir ' . $rel]);
-    } else {
-        echo json_encode(['ok' => true, 'file' => $rel, 'bytes' => $result]);
-    }
-    exit;
-}
-
 // Verificar contraseña
 if ($token !== ADMIN_PASSWORD) {
     http_response_code(403);
-    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'No autorizado']);
     exit;
 }
@@ -148,40 +28,65 @@ if ($token !== ADMIN_PASSWORD) {
 // Verificar que el contenido no esté vacío y sea JS válido
 if (empty($content)) {
     http_response_code(400);
-    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Contenido vacío']);
     exit;
 }
 
 if (strpos($content, 'const CONTENT') === false) {
     http_response_code(400);
-    ob_end_clean();
     echo json_encode(['ok' => false, 'error' => 'Contenido inválido']);
     exit;
 }
 
-// Determinar qué archivo guardar según el idioma
-$lang = $_POST['lang'] ?? '';
-if ($lang === 'es') {
-    $file   = __DIR__ . '/es/content.js';
-    $backup = __DIR__ . '/es/content.backup.js';
+// Ruta del archivo a sobreescribir
+$file = __DIR__ . '/content.js';
+
+// Diagnóstico de permisos antes de escribir
+if (!file_exists($file)) {
+    // El archivo no existe: verificar que el directorio sea escribible
+    if (!is_writable(__DIR__)) {
+        http_response_code(500);
+        echo json_encode([
+            'ok'    => false,
+            'error' => 'Directorio no escribible',
+            'dir'   => __DIR__,
+            'owner' => function_exists('posix_getpwuid') ? posix_getpwuid(fileowner(__DIR__))['name'] ?? '?' : '(posix no disponible)',
+            'php_user' => function_exists('posix_getpwuid') ? posix_getpwuid(posix_geteuid())['name'] ?? '?' : get_current_user(),
+        ]);
+        exit;
+    }
 } else {
-    $file   = __DIR__ . '/content.js';
-    $backup = __DIR__ . '/content.backup.js';
+    if (!is_writable($file)) {
+        http_response_code(500);
+        echo json_encode([
+            'ok'       => false,
+            'error'    => 'Archivo content.js no es escribible. Ajusta permisos a 644 con tu usuario FTP/Plesk.',
+            'file'     => $file,
+            'php_user' => function_exists('posix_getpwuid') ? posix_getpwuid(posix_geteuid())['name'] ?? '?' : get_current_user(),
+        ]);
+        exit;
+    }
 }
+
+// Hacer backup del archivo anterior
+$backup = __DIR__ . '/content.backup.js';
 if (file_exists($file)) {
     copy($file, $backup);
 }
 
 // Escribir el nuevo content.js
-$result = file_put_contents($file, $content);
+$result = file_put_contents($file, $content, LOCK_EX);
 
 if ($result === false) {
+    $last = error_get_last();
     http_response_code(500);
-    ob_end_clean();
-    echo json_encode(['ok' => false, 'error' => 'No se pudo escribir el archivo. Verifica permisos.']);
+    echo json_encode([
+        'ok'    => false,
+        'error' => 'file_put_contents falló',
+        'php_error' => $last['message'] ?? 'desconocido',
+        'file'  => $file,
+    ]);
     exit;
 }
 
-ob_end_clean();
 echo json_encode(['ok' => true, 'bytes' => $result]);
