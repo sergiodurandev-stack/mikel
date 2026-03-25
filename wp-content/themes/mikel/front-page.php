@@ -169,7 +169,7 @@ $video_url = ( strpos( $hero_video, 'http' ) === 0 )
 
 <!-- NAV -->
 <nav>
-    <div class="logo"><?php echo esc_html( $about_name ); ?></div>
+    <div class="logo"></div>
     <div class="nav-links">
         <a href="#projects">WORK</a>
         <a href="#world-map">MAP</a>
