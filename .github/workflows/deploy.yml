@@ -13,13 +13,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: Deploy all files via FTP (Python ftplib)
+      - name: Deploy changed files via FTP
         env:
           FTP_HOST: ${{ secrets.FTP_SERVER }}
           FTP_USER: ${{ secrets.FTP_USERNAME }}
           FTP_PASS: ${{ secrets.FTP_PASSWORD }}
         run: |
+          # Get only files changed in this push
+          git diff --name-only HEAD~1 HEAD > /tmp/changed_files.txt
+          echo "Archivos cambiados:"
+          cat /tmp/changed_files.txt
+
           python3 << 'PYEOF'
           import os, sys
           from ftplib import FTP
@@ -29,10 +36,15 @@ jobs:
           PASS = os.environ['FTP_PASS']
 
           REMOTE_ROOT = 'httpdocs'
+          SKIP_EXTS   = {'.mp4', '.webm', '.mov', '.bak'}
 
-          SKIP_DIRS  = {'.git', '.github', 'node_modules'}
-          SKIP_FILES = {'content.js', 'content.backup.js', 'contentactual.js', 'diag.py', 'diag.php'}
-          SKIP_EXTS  = {'.mp4', '.webm', '.mov', '.bak'}
+          # Read only changed files
+          with open('/tmp/changed_files.txt') as f:
+              changed = [l.strip() for l in f if l.strip()]
+
+          if not changed:
+              print('Nada que desplegar.')
+              sys.exit(0)
 
           ftp = FTP()
           ftp.connect(HOST, 21)
@@ -41,7 +53,6 @@ jobs:
           print(f'Conectado: {ftp.getwelcome()}')
 
           def ftp_makedirs(ftp, remote_path):
-              """Create remote directory and all parents if they don't exist."""
               parts = remote_path.replace('\\', '/').split('/')
               current = ''
               for part in parts:
@@ -51,7 +62,7 @@ jobs:
                   try:
                       ftp.mkd(current)
                   except Exception:
-                      pass  # already exists
+                      pass
 
           def upload_file(ftp, local_path, remote_path):
               remote_dir = '/'.join(remote_path.split('/')[:-1])
@@ -60,39 +71,31 @@ jobs:
               with open(local_path, 'rb') as f:
                   ftp.storbinary(f'STOR {remote_path}', f)
               print(f'  OK   {remote_path}')
-              return True
+
+          def delete_file(ftp, remote_path):
+              try:
+                  ftp.delete(remote_path)
+                  print(f'  DEL  {remote_path}')
+              except Exception as e:
+                  print(f'  DEL? {remote_path}: {e}')
 
           errors = []
-          for root, dirs, files in os.walk('.'):
-              # Filter dirs in-place
-              dirs[:] = sorted(
-                  d for d in dirs
-                  if d not in SKIP_DIRS and not d.startswith('.')
-              )
+          for rel in changed:
+              ext = os.path.splitext(rel)[1].lower()
+              if ext in SKIP_EXTS:
+                  print(f'  SKIP {rel}')
+                  continue
 
-              for fname in sorted(files):
-                  # Skip hidden except .htaccess
-                  if fname.startswith('.') and fname != '.htaccess':
-                      continue
-                  # Skip by name
-                  if fname in SKIP_FILES:
-                      print(f'  SKIP {fname}')
-                      continue
-                  # Skip by extension
-                  ext = os.path.splitext(fname)[1].lower()
-                  if ext in SKIP_EXTS:
-                      print(f'  SKIP {fname}')
-                      continue
-
-                  local  = os.path.join(root, fname)
-                  rel    = os.path.relpath(local, '.').replace('\\', '/')
-                  remote = REMOTE_ROOT + '/' + rel
-
+              remote = REMOTE_ROOT + '/' + rel
+              if os.path.exists(rel):
                   try:
-                      upload_file(ftp, local, remote)
+                      upload_file(ftp, rel, remote)
                   except Exception as e:
                       print(f'  ERR  {remote}: {e}')
                       errors.append(rel)
+              else:
+                  # File deleted from repo — delete from server too
+                  delete_file(ftp, remote)
 
           ftp.quit()
 
