@@ -150,7 +150,9 @@ if ( file_exists( $svg_path ) ) {
 
 // ── VIDEO URL ─────────────────────────────────────────────────────────────────
 // Try uploads first, then fallback to legacy /Mikel/ folder
-$video_url = home_url( '/Mikel/' . $hero_video );
+$video_url = ( strpos( $hero_video, 'http' ) === 0 )
+    ? $hero_video
+    : home_url( '/Mikel/' . $hero_video );
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
